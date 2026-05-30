@@ -1,0 +1,128 @@
+<!DOCTYPE html>  
+<html lang="en">  
+<head>  
+  <!-- MathJax for LaTeX rendering -->  
+<script>  
+  window.MathJax = {  
+    tex: {  
+      inlineMath: [['\\(', '\\)'], ['$', '$']],  
+      displayMath: [['\\[', '\\]'], ['$$', '$$']],  
+    },  
+    options: {  
+      skipHtmlTags: ['script', 'noscript', 'style', 'textarea']  
+    }  
+  };  
+</script>  
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>  
+
+  <meta charset="UTF-8"/>  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>  
+  <title>RAG — G+D</title>  
+  <link rel="stylesheet" href="styles.css"/>  
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>  
+</head>  
+<body>
+
+  <header class="header">  
+    <div class="header-left">  
+      <div class="logo">⬡<strong>RAG</strong></div>  
+      <div class="badge">G+D INTELLIGENCE</div>  
+    </div>  
+    <div class="model-pill"><span class="dot"></span>GPT-4.1 · text-embedding-3-small</div>  
+  </header>
+
+  <div class="layout">
+
+    <!-- LEFT SIDEBAR -->  
+    <aside class="sidebar">
+
+      <p class="label">Upload Documents</p>
+
+      <div class="upload-zone" id="uploadZone">  
+        <input type="file" id="fileInput" multiple accept=".pdf,.docx,.doc"/>  
+        <div class="upload-icon-wrap"><span>↑</span></div>  
+        <p class="upload-title">Drop PDFs or DOCX here</p>  
+        <p class="upload-sub">or click to browse</p>  
+      </div>
+
+      <!-- ── CHUNKING MODE DROPDOWN ── -->  
+<div class="chunk-mode-wrap">  
+  <label class="chunk-mode-label-text" for="chunkModeSelect">  
+    Chunking Mode  
+  </label>  
+  <div class="custom-select-wrap">  
+    <select id="chunkModeSelect" class="chunk-select" onchange="updateChunkMode()">  
+      <option value="recursive">⚡ Recursive (Fast)</option>  
+      <option value="semantic">🧠 Semantic (Smart)</option>  
+      <option value="sliding">🪟 Sliding Window</option>  
+      <option value="fixed">📏 Fixed Size</option>  
+    </select>  
+    <span class="select-arrow">▾</span>  
+  </div>  
+  <p class="chunk-mode-desc" id="chunkModeDesc">  
+    Splits by character count — fast &amp; reliable.  
+  </p>  
+</div>  
+
+
+      <button class="btn-process" id="processBtn" disabled onclick="ingestFiles()">  
+        ⚡ Process &amp; Embed  
+      </button>
+
+      <p class="label" style="margin-top:16px;">  
+        Files <span class="count" id="fileCount">0</span>  
+      </p>
+
+      <div class="file-list" id="fileList">  
+        <div class="no-files" id="noFiles">📂 No files yet</div>  
+      </div>
+
+      <div class="stats">  
+        <div class="stat"><span id="sChunks">0</span><small>Chunks</small></div>  
+        <div class="stat-sep"></div>  
+        <div class="stat"><span id="sFiles">0</span><small>Files</small></div>  
+        <div class="stat-sep"></div>  
+        <div class="stat"><span id="sQueries">0</span><small>Queries</small></div>  
+      </div>
+
+    </aside>
+
+    <!-- RIGHT MAIN -->  
+    <main class="main">
+
+      <div class="query-bar">  
+        <div class="query-box" id="queryBox">  
+          <textarea  
+            id="queryInput"  
+            placeholder="Ask anything about your documents…"  
+            rows="1"  
+            onkeydown="handleKey(event)"  
+            oninput="resize(this)"  
+          ></textarea>  
+          <div class="query-footer">  
+            <div class="opts">  
+              <label>Top-K <input type="number" id="topK" value="5" min="1" max="20"/></label>  
+              <label>Temp  <input type="number" id="temp" value="0.2" min="0" max="1" step="0.1"/></label>  
+            </div>  
+            <button class="btn-ask" id="askBtn" onclick="submitQuery()">  
+              <span id="askLabel">➤ Ask</span>  
+            </button>  
+          </div>  
+        </div>  
+      </div>
+
+      <div class="results" id="results">  
+        <div class="empty" id="emptyState">  
+          <div class="orb">🧠</div>  
+          <h2>Start by uploading</h2>  
+          <p>Upload → Process → Ask</p>  
+        </div>  
+      </div>
+
+    </main>  
+  </div>
+
+  <div class="toasts" id="toasts"></div>  
+  <script src="app.js"></script>  
+</body>  
+</html>  
