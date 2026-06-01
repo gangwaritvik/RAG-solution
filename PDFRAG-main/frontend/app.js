@@ -63,28 +63,39 @@ function isSupported(f) {
 }
 
 function addFiles(files) {  
-  const supported = files.filter(isSupported);  
-  if (!supported.length) {  
-    toast('Only PDF and DOCX files accepted.', 'error');  
+  const allowed = files.filter(f =>  
+    f.type === 'application/pdf' ||  
+    f.type === 'text/csv' ||  
+    f.name.toLowerCase().endsWith('.pdf') ||  
+    f.name.toLowerCase().endsWith('.docx') ||  
+    f.name.toLowerCase().endsWith('.csv')  
+  );
+
+  if (!allowed.length) {  
+    toast('Only PDF, DOCX, and CSV files accepted.', 'error');  
     return;  
-  }  
-  supported.forEach(function(f) {  
-    if (state.files.find(function(x) { return x.name === f.name; })) return;  
+  }
+
+  allowed.forEach(f => {  
+    if (state.files.find(x => x.name === f.name)) return;  
     state.files.push({  
       id: Date.now() + Math.random(),  
       file: f,  
       name: f.name,  
       size: fmtSize(f.size),  
       status: 'pending',  
-      chunks: [],  
-      chunkMode: null,  
+      chunks: []  
     });  
-  });  
-  renderFiles();  
+  });
+
+  renderFiles();
+
   const btn = document.getElementById('processBtn');  
-  if (btn) btn.disabled = !state.files.some(function(f) { return f.status === 'pending'; });  
-  toast(supported.length + ' file(s) added', 'success');  
-}
+  if (btn) btn.disabled = !state.files.some(f => f.status === 'pending');
+
+  toast(`${allowed.length} file(s) added`, 'success');  
+}  
+
 
 async function loadExistingDocuments() {  
   try {  
