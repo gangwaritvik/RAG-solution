@@ -157,7 +157,8 @@ class RAGHandler(BaseHTTPRequestHandler):
 
                 if not (filename.lower().endswith(".pdf") or  
                         filename.lower().endswith(".docx") or  
-                        filename.lower().endswith(".doc")):  
+                        filename.lower().endswith(".doc") or
+                        filename.lower().endswith(".csv")):  
                     log.warning(f"[INGEST] Skipping unsupported file: {filename}")  
                     continue  
 
