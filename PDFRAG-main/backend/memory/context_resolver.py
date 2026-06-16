@@ -1,29 +1,13 @@
 """Context Resolution Layer for query classification and processing."""
 
-from enum import Enum
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 
 from backend.utils.logger import get_logger
+from .dependency_classifier import DependencyClassifier, DependencyType
+from .intent_classifier import IntentClassifier, RetrievalIntent
 
 log = get_logger("context_resolver")
-
-
-class DependencyType(Enum):
-    """Query dependency classification."""
-    INDEPENDENT = "independent"      # Standalone query, no context needed
-    DEPENDENT = "dependent"           # Follow-up, needs active group context
-    MULTI_GROUP = "multi_group"       # Compares/relates multiple groups
-    AMBIGUOUS = "ambiguous"           # Unclear, might need clarification
-
-
-class RetrievalIntent(Enum):
-    """Query intent classification for retrieval strategy."""
-    FACTUAL = "factual"              # What is X? → Top relevant chunks
-    SUMMARY = "summary"               # Summarize X → Broader coverage
-    COMPARISON = "comparison"         # Compare X and Y → Multi-group retrieval
-    EXTRACTION = "extraction"         # List all X → Aggregate information
-    ANALYSIS = "analysis"             # Why/how/risks → Cross-section reasoning
 
 
 @dataclass
@@ -72,7 +56,7 @@ class ContextResolver:
         log.info(f"[RESOLVER] Processing query: {query[:80]}")
         
         # Step 1: Classify dependency type
-        dependency_type = self._classify_dependency(query, active_group_id)
+        dependency_type = DependencyClassifier.classify(query, active_group_id)
         log.info(f"[RESOLVER] Dependency type: {dependency_type.value}")
         
         # Step 2: Generate standalone query
@@ -84,7 +68,7 @@ class ContextResolver:
         log.info(f"[RESOLVER] Standalone query: {standalone_query[:80]}")
         
         # Step 3: Classify retrieval intent
-        retrieval_intent = self._classify_intent(query)
+        retrieval_intent = IntentClassifier.classify(query)
         log.info(f"[RESOLVER] Retrieval intent: {retrieval_intent.value}")
         
         # Step 4: Find relevant groups
@@ -118,55 +102,6 @@ class ContextResolver:
         log.info("[RESOLVER] ✅ Context resolution complete")
         return context
     
-    def _classify_dependency(
-        self, 
-        query: str, 
-        active_group_id: Optional[str]
-    ) -> DependencyType:
-        """
-        Classify query dependency type.
-        
-        Uses heuristics:
-        - Contains pronouns (this, that, it) → likely DEPENDENT
-        - References previous topic → DEPENDENT
-        - Compares/relates concepts → MULTI_GROUP
-        - Clear standalone question → INDEPENDENT
-        """
-        query_lower = query.lower()
-        
-        # Check for dependency indicators
-        dependent_keywords = [
-            "this", "that", "these", "those", "it", "its",
-            "above", "following", "previous", "earlier",
-            "same", "another", "other", "also",
-            "too", "again", "as mentioned", "mentioned above"
-        ]
-        
-        comparison_keywords = [
-            "compare", "versus", "vs", "difference", "similar",
-            "between", "both", "either", "neither",
-            "more than", "less than", "while"
-        ]
-        
-        # Check for comparison (multi-group)
-        if any(kw in query_lower for kw in comparison_keywords):
-            return DependencyType.MULTI_GROUP
-        
-        # Check for dependency on previous context
-        if active_group_id and any(kw in query_lower for kw in dependent_keywords):
-            return DependencyType.DEPENDENT
-        
-        # Check if query is standalone (starts with question words)
-        question_words = ["what", "when", "where", "who", "why", "how"]
-        if query_lower.startswith(tuple(question_words)):
-            return DependencyType.INDEPENDENT
-        
-        # Default based on active group
-        if active_group_id:
-            return DependencyType.AMBIGUOUS
-        
-        return DependencyType.INDEPENDENT
-    
     def _generate_standalone_query(
         self,
         query: str,
@@ -195,42 +130,6 @@ class ContextResolver:
         # For MULTI_GROUP and AMBIGUOUS, return as-is
         # Could use LLM to expand in future
         return query
-    
-    def _classify_intent(self, query: str) -> RetrievalIntent:
-        """
-        Classify query retrieval intent.
-        
-        Uses keywords to determine retrieval strategy:
-        - "What/Where/Which" → FACTUAL
-        - "Summarize/Overview" → SUMMARY
-        - "Compare/Difference" → COMPARISON
-        - "List/All/Every" → EXTRACTION
-        - "Why/How/Risk/Impact" → ANALYSIS
-        """
-        query_lower = query.lower()
-        
-        # Check for EXTRACTION
-        extraction_keywords = ["list", "all", "every", "each", "enumerate", "provide all"]
-        if any(kw in query_lower for kw in extraction_keywords):
-            return RetrievalIntent.EXTRACTION
-        
-        # Check for SUMMARY
-        summary_keywords = ["summarize", "overview", "summary", "outline", "brief"]
-        if any(kw in query_lower for kw in summary_keywords):
-            return RetrievalIntent.SUMMARY
-        
-        # Check for COMPARISON
-        comparison_keywords = ["compare", "versus", "vs", "difference", "similar", "between"]
-        if any(kw in query_lower for kw in comparison_keywords):
-            return RetrievalIntent.COMPARISON
-        
-        # Check for ANALYSIS
-        analysis_keywords = ["why", "how", "risk", "impact", "cause", "effect", "implication"]
-        if any(kw in query_lower for kw in analysis_keywords):
-            return RetrievalIntent.ANALYSIS
-        
-        # Default to FACTUAL
-        return RetrievalIntent.FACTUAL
     
     def _find_relevant_groups(
         self, 
