@@ -18,7 +18,7 @@ from backend.ingestion.embedder import Embedder
 from backend.ingestion.vector_store import VectorStore  
 from backend.retrieval.retriever import Retriever  
 from backend.generation.generator import Generator  
-from backend.memory import ConversationMemoryManager  
+from backend.memory import ConversationMemoryManager, ContextResolver  
 from backend.utils.parser import parse_multipart_full  
 from backend.utils.logger import get_logger
   
@@ -36,6 +36,7 @@ vector_store = VectorStore(persist_dir=CHROMA_DIR)
 retriever = Retriever(embedder, vector_store)
 generator    = Generator()
 memory_manager = ConversationMemoryManager(chroma_db_path=CHROMA_DIR)
+context_resolver = ContextResolver(memory_manager, embedder)
 
 # ── Clear stale vectors on startup ──  
 vector_store.clear()  
@@ -270,17 +271,31 @@ class RAGHandler(BaseHTTPRequestHandler):
                 self.send_json({"error": "No documents ingested yet."}, 400)  
                 return
 
-            log.info("[QUERY] STEP 1 — Retrieving relevant chunks")  
-            hits = retriever.retrieve(query, top_k=top_k)  
+            # STEP 1 — Context Resolution: Classify query and load memory context
+            log.info("[QUERY] STEP 1 — Resolving query context")
+            query_context = context_resolver.resolve(query, active_group_id=group_id)
+            log.info(f"[QUERY] Dependency: {query_context.dependency_type.value} | Intent: {query_context.retrieval_intent.value}")
+            log.info(f"[QUERY] Standalone query: {query_context.standalone_query[:80]}")
+
+            # STEP 2 — Retrieval: Use standalone query for document retrieval
+            log.info("[QUERY] STEP 2 — Retrieving relevant chunks")
+            # Use standalone query for better retrieval
+            hits = retriever.retrieve(query_context.standalone_query, top_k=top_k)  
             log.info(f"[QUERY] Retrieved {len(hits)} chunks")
 
-            log.info("[QUERY] STEP 2 — Generating answer with memory summary")  
-            answer, memory_summary = generator.generate(query, hits, temperature=temp)  
+            # STEP 3 — Generation: Generate answer with memory context
+            log.info("[QUERY] STEP 3 — Generating answer with memory context")
+            answer, memory_summary = generator.generate(
+                query=query,
+                context_chunks=hits,
+                temperature=temp,
+                memory_context=query_context.memory_context
+            )  
             log.info("[QUERY] ✅ Answer generated with memory summary")
 
-            # Step 3 — Store in conversation memory if group_id provided
+            # STEP 4 — Memory Storage: Store in conversation group if provided
             if group_id:
-                log.info(f"[QUERY] STEP 3 — Storing in conversation group: {group_id}")
+                log.info(f"[QUERY] STEP 4 — Storing in conversation group: {group_id}")
                 turn = memory_manager.add_conversation_turn(
                     group_id=group_id,
                     query=query,
@@ -299,6 +314,12 @@ class RAGHandler(BaseHTTPRequestHandler):
                 "memory_summary": memory_summary,
                 "sources": hits,
                 "group_id": group_id,
+                "query_context": {
+                    "dependency_type": query_context.dependency_type.value,
+                    "retrieval_intent": query_context.retrieval_intent.value,
+                    "standalone_query": query_context.standalone_query,
+                    "relevant_groups": len(query_context.relevant_groups),
+                }
             })
 
         except Exception as e:  

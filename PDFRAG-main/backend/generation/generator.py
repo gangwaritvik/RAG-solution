@@ -13,19 +13,35 @@ class Generator:
             api_version=AZURE_API_VERSION,  
         )
 
-    def generate(self, query: str, context_chunks: list, temperature: float = 0.2) -> tuple:  
+    def generate(self, query: str, context_chunks: list, temperature: float = 0.2, memory_context: str = None) -> tuple:  
         """
         Generate answer and memory summary from query and context.
         
+        Args:
+            query: User query
+            context_chunks: Retrieved document chunks
+            temperature: LLM temperature
+            memory_context: Optional conversation memory context from previous turns
+            
         Returns:
             tuple: (answer, memory_summary)
                 - answer: Full detailed response for user
                 - memory_summary: Compressed key points for conversation memory
         """
-        context = "\n\n".join([  
+        context_sections = []
+        
+        # Add conversation context if available
+        if memory_context:
+            context_sections.append("## Previous Conversation Context:\n" + memory_context)
+        
+        # Add retrieved document chunks
+        context_sections.append("## Document Context:")
+        context_sections.append("\n\n".join([  
             f"[Source: {c['filename']} | Page: {c['page']} | Chunk: {c['chunk_index']}]\n{c['text']}"  
             for c in context_chunks  
-        ])
+        ]))
+        
+        full_context = "\n\n".join(context_sections)
 
         messages = [  
             {
@@ -43,7 +59,8 @@ class Generator:
                     "   - Never fabricate. Stick strictly to the provided document context\n" 
                     "   - Scan the ENTIRE provided context thoroughly before answering\n"  
                     "   - Do not stop listing items early — include EVERY quantity mentioned\n"  
-                    "   - If the same quantity appears in multiple chunks, list only once\n\n"
+                    "   - If the same quantity appears in multiple chunks, list only once\n"
+                    "   - Use previous conversation context to inform your answer without repeating it\n\n"
                     "2. MEMORY_SUMMARY: Brief compressed version with ONLY key points\n"
                     "   - Bullet format: key fact 1; key fact 2; key fact 3\n"
                     "   - No explanations, just facts\n"
@@ -55,7 +72,7 @@ class Generator:
             },  
             {
                 "role": "user",  
-                "content": f"Context:\n{context}\n\nQuestion: {query}",  
+                "content": f"Context:\n{full_context}\n\nQuestion: {query}",  
             },  
         ]
 

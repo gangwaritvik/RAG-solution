@@ -3,6 +3,7 @@
 from .memory_store import MemoryStore
 from .group_memory import GroupMemory, ConversationTurn, Group
 from .conversation_manager import ConversationMemoryManager
+from .context_resolver import ContextResolver, QueryContext, DependencyType, RetrievalIntent
 
 __all__ = [
     "MemoryStore", 
@@ -10,4 +11,8 @@ __all__ = [
     "ConversationTurn", 
     "Group",
     "ConversationMemoryManager",
+    "ContextResolver",
+    "QueryContext",
+    "DependencyType",
+    "RetrievalIntent",
 ]
