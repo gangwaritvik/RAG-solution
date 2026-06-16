@@ -18,6 +18,7 @@ from backend.ingestion.embedder import Embedder
 from backend.ingestion.vector_store import VectorStore  
 from backend.retrieval.retriever import Retriever  
 from backend.generation.generator import Generator  
+from backend.memory import ConversationMemoryManager  
 from backend.utils.parser import parse_multipart_full  
 from backend.utils.logger import get_logger
   
@@ -34,10 +35,12 @@ embedder     = Embedder()
 vector_store = VectorStore(persist_dir=CHROMA_DIR)  
 retriever = Retriever(embedder, vector_store)
 generator    = Generator()
+memory_manager = ConversationMemoryManager(chroma_db_path=CHROMA_DIR)
 
 # ── Clear stale vectors on startup ──  
 vector_store.clear()  
-log.info("[STARTUP] Vector store cleared — fresh session started")  
+log.info("[STARTUP] Vector store cleared — fresh session started")
+log.info("[STARTUP] Conversation memory manager initialized")  
 
 
 def get_chunker(mode: str):  
