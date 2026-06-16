@@ -1,556 +1,725 @@
-const state = {  
-  files: [],  
-  queryCount: 0,  
-  totalChunks: 0,  
+var state = {  
+    files: [],  
+    queryCount: 0,  
+    totalChunks: 0  
 };
 
+var qsExpanded = true;
+
+
 function setText(id, val) {  
-  const el = document.getElementById(id);  
-  if (el) el.textContent = val;  
+    var el = document.getElementById(id);  
+    if (el) el.textContent = val;  
 }
 
-const CHUNK_DESCRIPTIONS = {  
-  recursive: 'Splits by character count with smart separator fallback — fast &amp; reliable.',  
-  semantic: 'Splits by meaning using embeddings — preserves topic context. Slower, uses embedding API.',  
-  sliding: 'Overlapping windows of fixed size — ensures no context is lost at chunk boundaries.',  
-  fixed: 'Hard splits at exact character count — simple, predictable, no overlap.',  
+var CHUNK_DESCRIPTIONS = {  
+    recursive: 'Splits by character count with smart separator fallback — fast &amp; reliable.',  
+    semantic:  'Splits by meaning using embeddings — preserves topic context. Slower, uses embedding API.',  
+    sliding:   'Overlapping windows of fixed size — ensures no context is lost at chunk boundaries.',  
+    fixed:     'Hard splits at exact character count — simple, predictable, no overlap.'  
 };
 
 function updateChunkMode() {  
-  const select = document.getElementById('chunkModeSelect');  
-  const desc = document.getElementById('chunkModeDesc');  
-  const mode = select.value;  
-  if (desc) desc.innerHTML = CHUNK_DESCRIPTIONS[mode] || '';  
-  select.classList.toggle('semantic-active', mode === 'semantic');  
-  toast(mode === 'semantic' ? '🧠 Semantic chunking selected' : '⚡ Recursive chunking selected', 'info');  
+    var select = document.getElementById('chunkModeSelect');  
+    var desc   = document.getElementById('chunkModeDesc');  
+    var mode   = select.value;  
+    if (desc) desc.innerHTML = CHUNK_DESCRIPTIONS[mode] || '';  
+    toast(mode === 'semantic' ? '🧠 Semantic chunking selected' : '⚡ ' + mode + ' chunking selected', 'info');  
 }
 
 function getChunkMode() {  
-  const select = document.getElementById('chunkModeSelect');  
-  return select ? select.value : 'recursive';  
+    var select = document.getElementById('chunkModeSelect');  
+    return select ? select.value : 'recursive';  
 }
 
-const zone = document.getElementById('uploadZone');  
-const input = document.getElementById('fileInput');
+/* ══ TOP-K MAX TOGGLE ══ */  
+var topKMaxActive = false;
 
-zone.addEventListener('dragover', function(e) {  
-  e.preventDefault();  
-  zone.classList.add('drag-over');  
-});
+function toggleTopKMax() {  
+    topKMaxActive = !topKMaxActive;  
+    var btn     = document.getElementById('btnTopKMax');  
+    var slider  = document.getElementById('topK');  
+    var display = document.getElementById('topKDisplay');
 
-zone.addEventListener('dragleave', function() {  
-  zone.classList.remove('drag-over');  
-});
+    if (topKMaxActive) {  
+        if (btn)     btn.classList.add('active');  
+        if (display) display.textContent = 'ALL';  
+        if (slider)  slider.disabled = true;  
+        toast('Top-K set to MAX — all chunks will be retrieved', 'info');  
+    } else {  
+        if (btn)     btn.classList.remove('active');  
+        if (slider)  slider.disabled = false;  
+        var val = slider ? slider.value : '5';  
+        if (display) display.textContent = val;  
+        toast('Top-K restored to ' + val, 'info');  
+    }  
+}
 
-zone.addEventListener('drop', function(e) {  
-  e.preventDefault();  
-  zone.classList.remove('drag-over');  
-  addFiles(Array.from(e.dataTransfer.files));  
-});
+function updateTopK(val) {  
+    var display = document.getElementById('topKDisplay');  
+    if (!topKMaxActive && display) display.textContent = val;  
+}
 
-input.addEventListener('change', function() {  
-  addFiles(Array.from(input.files));  
-  input.value = '';  
+function updateTemp(val) {  
+    var display = document.getElementById('tempDisplay');  
+    if (display) display.textContent = parseFloat(val).toFixed(1);  
+}
+
+function getTopK() {  
+    if (topKMaxActive) return state.totalChunks || 9999;  
+    var el = document.getElementById('topK');  
+    return parseInt(el ? el.value : '5') || 5;  
+}
+
+function getTemp() {  
+    var el = document.getElementById('temp');  
+    return parseFloat(el ? el.value : '0.2') || 0.2;  
+}
+
+/* ══ UPLOAD ZONE ══ */  
+document.addEventListener('DOMContentLoaded', function() {  
+    var zone  = document.getElementById('uploadZone');  
+    var input = document.getElementById('fileInput');
+
+    if (!zone || !input) {  
+        console.error('[UPLOAD] uploadZone or fileInput not found in DOM');  
+        return;  
+    }
+
+    zone.addEventListener('dragover', function(e) {  
+        e.preventDefault();  
+        e.stopPropagation();  
+        zone.classList.add('drag-over');  
+    });
+
+    zone.addEventListener('dragenter', function(e) {  
+        e.preventDefault();  
+        e.stopPropagation();  
+        zone.classList.add('drag-over');  
+    });
+
+    zone.addEventListener('dragleave', function(e) {  
+        e.preventDefault();  
+        e.stopPropagation();  
+        zone.classList.remove('drag-over');  
+    });
+
+    zone.addEventListener('drop', function(e) {  
+        e.preventDefault();  
+        e.stopPropagation();  
+        zone.classList.remove('drag-over');  
+        var files = e.dataTransfer ? Array.from(e.dataTransfer.files) : [];  
+        if (files.length) addFiles(files);  
+    });
+
+    zone.addEventListener('click', function() {  
+        input.click();  
+    });
+
+    input.addEventListener('change', function() {  
+        addFiles(Array.from(input.files));  
+        input.value = '';  
+    });  
 });
 
 function isSupported(f) {  
-  const name = f.name.toLowerCase();  
-  return f.type === 'application/pdf'  
-    || f.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'  
-    || name.endsWith('.pdf')  
-    || name.endsWith('.docx')  
-    || name.endsWith('.doc');  
+    var name = f.name.toLowerCase();  
+    return f.type === 'application/pdf'  
+        || f.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'  
+        || f.type === 'text/plain'  
+        || name.endsWith('.pdf')  
+        || name.endsWith('.docx')  
+        || name.endsWith('.doc');  
 }
 
 function addFiles(files) {  
-  const allowed = files.filter(f =>  
-    f.type === 'application/pdf' ||  
-    f.type === 'text/csv' ||  
-    f.name.toLowerCase().endsWith('.pdf') ||  
-    f.name.toLowerCase().endsWith('.docx') ||  
-    f.name.toLowerCase().endsWith('.csv')  
-  );
-
-  if (!allowed.length) {  
-    toast('Only PDF, DOCX, and CSV files accepted.', 'error');  
-    return;  
-  }
-
-  allowed.forEach(f => {  
-    if (state.files.find(x => x.name === f.name)) return;  
-    state.files.push({  
-      id: Date.now() + Math.random(),  
-      file: f,  
-      name: f.name,  
-      size: fmtSize(f.size),  
-      status: 'pending',  
-      chunks: []  
-    });  
-  });
-
-  renderFiles();
-
-  const btn = document.getElementById('processBtn');  
-  if (btn) btn.disabled = !state.files.some(f => f.status === 'pending');
-
-  toast(`${allowed.length} file(s) added`, 'success');  
-}  
-
-
-async function loadExistingDocuments() {  
-  try {  
-    const res = await fetch('/documents');  
-    const data = await res.json();  
-    if (data.error || !data.documents || !data.documents.length) return;
-
-    data.documents.forEach(function(doc) {  
-      if (state.files.find(function(f) { return f.name === doc.filename; })) return;
-
-      const fileSize = (doc.file_size && doc.file_size > 0)  
-        ? fmtSize(doc.file_size)  
-        : (doc.chunk_count || 0) + ' chunks';
-
-      state.files.push({  
-        id: Date.now() + Math.random(),  
-        file: null,  
-        name: doc.filename,  
-        size: fileSize,  
-        status: 'done',  
-        chunks: [],  
-        chunkMode: doc.chunk_type || 'recursive',  
-      });
-
-      state.totalChunks += doc.chunk_count || 0;  
-    });
-
+    var supported = files.filter(isSupported);  
+    if (!supported.length) {  
+        toast('Only PDF and DOCX files accepted.', 'error');  
+        return;  
+    }  
+    for (var i = 0; i < supported.length; i = i + 1) {  
+        var f = supported[i];  
+        var exists = false;  
+        for (var j = 0; j < state.files.length; j = j + 1) {  
+            if (state.files[j].name === f.name) { exists = true; break; }  
+        }  
+        if (exists) continue;  
+        state.files.push({  
+            id: Date.now() + Math.random(),  
+            file: f,  
+            name: f.name,  
+            size: fmtSize(f.size),  
+            status: 'pending',  
+            chunks: [],  
+            chunkMode: null  
+        });  
+    }  
     renderFiles();  
-    setText('sChunks', state.totalChunks);  
-    setText('sFiles', state.files.length);  
-    toast('📂 Restored ' + data.documents.length + ' document(s) from database', 'info');  
-  } catch (e) {  
-    console.warn('[LOAD EXISTING] Failed:', e.message);  
-  }  
+    var btn = document.getElementById('processBtn');  
+    var hp  = false;  
+    for (var i = 0; i < state.files.length; i = i + 1) {  
+        if (state.files[i].status === 'pending') { hp = true; break; }  
+    }  
+    if (btn) btn.disabled = !hp;  
+    toast(supported.length + ' file(s) added', 'success');  
 }
 
+/* ══ RENDER FILES ══ */  
 function renderFiles() {  
-  const list = document.getElementById('fileList');  
-  const noMsg = document.getElementById('noFiles');  
-  if (!list) return;
+    var list  = document.getElementById('fileList');  
+    var noMsg = document.getElementById('noFiles');  
+    if (!list) return;
 
-  if (noMsg) noMsg.style.display = state.files.length ? 'none' : 'block';  
-  const existing = list.querySelectorAll('.file-item');  
-  existing.forEach(function(el) { el.remove(); });
+    if (noMsg) noMsg.style.display = state.files.length ? 'none' : 'block';  
+    var ex = list.querySelectorAll('.file-item');  
+    for (var i = 0; i < ex.length; i = i + 1) { ex[i].remove(); }
 
-  state.files.forEach(function(f) {  
-    const div = document.createElement('div');  
-    div.className = 'file-item';  
-    div.id = 'fi-' + f.id;
+    for (var i = 0; i < state.files.length; i = i + 1) {  
+        var f   = state.files[i];  
+        var div = document.createElement('div');  
+        div.className = 'file-item';  
+        div.id = 'fi-' + f.id;  
+        div.style.animationDelay = (i * 0.05) + 's';
 
-    const methodBadge = f.chunkMode  
-      ? '<span class="chunk-method-badge chunk-badge-' + f.chunkMode + '">' + f.chunkMode.toUpperCase() + '</span>'  
-      : '';
+        var methodBadge = f.chunkMode  
+            ? '<span class="chunk-method-badge chunk-badge-' + f.chunkMode + '">' + f.chunkMode.toUpperCase() + '</span>'  
+            : '';
 
-    const rechunkBtn = f.status === 'done'  
-      ? '<button class="file-rechunk-btn" title="Re-chunk with different method" onclick="rechunkFile(\'' + f.id + '\', \'' + esc(f.name) + '\', event)">🔄</button>'  
-      : '';
+        var rechunkBtn = f.status === 'done'  
+            ? '<button class="file-rechunk-btn" title="Re-chunk" onclick="rechunkFile(\'' + f.id + '\', \'' + esc(f.name) + '\', event)">&#x1F504;</button>'  
+            : '';
 
-    const deleteBtn = '<button class="file-delete-btn" title="Delete from vector store" onclick="deleteFile(\'' + f.id + '\', \'' + esc(f.name) + '\', event)">🗑️</button>';
+        var deleteBtn = '<button class="file-delete-btn" title="Delete" onclick="deleteFile(\'' + f.id + '\', \'' + esc(f.name) + '\', event)">&#x1F5D1;</button>';
 
-    const progressBar = f.status === 'processing'  
-      ? '<div class="progress-wrap"><div class="progress-fill" id="pb-' + f.id + '" style="width:0%"></div></div>'  
-      : '';
+        var progressBar = f.status === 'processing'  
+            ? '<div class="progress-wrap"><div class="progress-fill" id="pb-' + f.id + '" style="width:0%"></div></div>'  
+            : '';
 
-    let chunkToggle = '';  
-    if (f.chunks.length > 0) {  
-      const chunksHTML = f.chunks.map(function(c, i) {  
-        const pageNum = (c.page != null && c.page !== '?') ? c.page : '?';  
-        return '<div class="chunk-card">'  
-                    + '<div class="chunk-label">Chunk ' + (i + 1) + ' · Page ' + pageNum + '</div>'  
-                    + '<div class="chunk-text">' + esc(c.text) + '</div>'  
-                    + '</div>';  
-      }).join('');
+        var chunkToggle = '';  
+        if (f.chunks.length > 0) {  
+            var chunksHTML = '';  
+            for (var k = 0; k < f.chunks.length; k = k + 1) {  
+                var c       = f.chunks[k];  
+                var pageNum = (c.page != null && c.page !== '?') ? c.page : '?';  
+                chunksHTML = chunksHTML  
+                                        + '<div class="chunk-card" onclick="openChunkModal(\''  
+                                        + esc(f.name) + '\', ' + (k + 1) + ', ' + pageNum  
+                                        + ', \'' + esc(c.text || '') + '\', \''  
+                                        + (f.chunkMode || 'recursive') + '\')">'  
+                                        + '<div class="chunk-label">Chunk ' + (k + 1) + ' · Page ' + pageNum + '</div>'  
+                                        + '<div class="chunk-text">' + esc(c.text || '') + '</div>'  
+                                        + '</div>';  
+            }  
+            chunkToggle = '<div class="chunk-toggle" onclick="toggleChunks(\'' + f.id + '\')">'  
+                                + '<span id="arr-' + f.id + '">&#9658;</span> Chunks (' + f.chunks.length + ')'  
+                                + '</div>'  
+                                + '<div class="chunk-list" id="cl-' + f.id + '">' + chunksHTML + '</div>';  
+        }
 
-      chunkToggle = '<div class="chunk-toggle" onclick="toggleChunks(\'' + f.id + '\')">'  
-                + '<span id="arr-' + f.id + '">▶</span> Chunks (' + f.chunks.length + ')'  
-                + '</div>'  
-                + '<div class="chunk-list" id="cl-' + f.id + '">' + chunksHTML + '</div>';  
+        div.innerHTML = '<div class="file-head">'  
+                        + '<span class="file-icon">&#128196;</span>'  
+                        + '<div class="file-info">'  
+                        + '<div class="file-name" title="' + esc(f.name) + '">' + esc(f.name) + '</div>'  
+                        + '<div class="file-meta">' + methodBadge + '</div>'  
+                        + '<span class="file-size-text">' + f.size + '</span>'  
+                        + '</div>'  
+                        + '<span class="file-badge badge-' + f.status + '">' + f.status.toUpperCase() + '</span>'  
+                        + rechunkBtn  
+                        + deleteBtn  
+                        + '</div>'  
+                        + progressBar  
+                        + chunkToggle;
+
+        list.appendChild(div);  
     }
-    div.innerHTML = '<div class="file-head">'  
-        + '<span class="file-icon">📄</span>'  
-        + '<div class="file-info">'  
-        + '<div class="file-name" title="' + esc(f.name) + '">' + esc(f.name) + '</div>'  
-        + '<div class="file-meta">' + methodBadge + '</div>'  
-        + '<span class="file-size-text">' + f.size + '</span>'  
-        + '</div>'  
-        + '<span class="file-badge badge-' + f.status + '">' + f.status.toUpperCase() + '</span>'  
-        + rechunkBtn  
-        + deleteBtn  
-        + '</div>'  
-        + progressBar  
-        + chunkToggle;  
 
-    list.appendChild(div);  
-  });
-
-  setText('fileCount', state.files.length);  
-  setText('sFiles', state.files.length);  
-  setText('sChunks', state.totalChunks);  
-  setText('sQueries', state.queryCount);  
+    setText('fileCount', state.files.length);  
+    setText('sFiles',    state.files.length);  
+    setText('sChunks',   state.totalChunks);  
+    setText('sQueries',  state.queryCount);  
 }
 
 function toggleChunks(id) {  
-  const cl = document.getElementById('cl-' + id);  
-  const arr = document.getElementById('arr-' + id);  
-  if (!cl) return;  
-  const open = cl.classList.toggle('open');  
-  if (arr) arr.textContent = open ? '▼' : '▶';  
+    var cl  = document.getElementById('cl-' + id);  
+    var arr = document.getElementById('arr-' + id);  
+    if (!cl) return;  
+    var open = cl.classList.toggle('open');  
+    if (arr) arr.innerHTML = open ? '&#9660;' : '&#9658;';  
 }
 
+
+
+function toggleQuerySettings(){    
+    qsExpanded = !qsExpanded;  
+    var body  = document.getElementById('qsBody');  
+    var arrow = document.getElementById('qsArrow');  
+    if (body)  body.style.display  = qsExpanded ? 'flex' : 'none';    
+    if (arrow) arrow.innerHTML = qsExpanded ? '&#x25BE;' : '&#x25B8;';  
+}  
+
+
+/* ══ CHUNK MODAL ══ */  
+function openChunkModal(filename, chunkNum, page, text, chunkType) {  
+    var modal   = document.getElementById('chunkModal');  
+    var titleEl = document.getElementById('modalTitle');  
+    var metaEl  = document.getElementById('modalMeta');  
+    var bodyEl  = document.getElementById('modalBody');  
+    if (!modal) return;  
+    titleEl.innerHTML = esc(filename);  
+    metaEl.innerHTML  = '<span class="meta-pill">Chunk <strong>' + chunkNum + '</strong></span>'  
+                + '<span class="meta-pill">Page <strong>' + page + '</strong></span>'  
+                + '<span class="meta-pill">Method <strong>' + chunkType.toUpperCase() + '</strong></span>';  
+    bodyEl.textContent = text;  
+    modal.classList.add('open');  
+    document.body.style.overflow = 'hidden';  
+}
+
+function closeChunkModal() {  
+    var modal = document.getElementById('chunkModal');  
+    if (modal) modal.classList.remove('open');  
+    document.body.style.overflow = '';  
+}
+
+document.addEventListener('keydown', function(e) {  
+    if (e.key === 'Escape') closeChunkModal();  
+});
+
+/* ══ INGEST ══ */  
 async function ingestFiles() {  
-  const pending = state.files.filter(function(f) { return f.status === 'pending' && f.file !== null; });  
-  if (!pending.length) return;
+    var pending = [];  
+    for (var i = 0; i < state.files.length; i = i + 1) {  
+        if (state.files[i].status === 'pending' && state.files[i].file !== null) {  
+            pending.push(state.files[i]);  
+        }  
+    }  
+    if (!pending.length) return;
 
-  const btn = document.getElementById('processBtn');  
-  const chunkMode = getChunkMode();  
-  if (btn) btn.disabled = true;
+    var btn       = document.getElementById('processBtn');  
+    var chunkMode = getChunkMode();  
+    if (btn) btn.disabled = true;
 
-  for (let i = 0; i < pending.length; i++) {  
-    const f = pending[i];  
-    f.status = 'processing';  
-    renderFiles();  
-    animateProgress(f.id);
+    for (var i = 0; i < pending.length; i = i + 1) {  
+        var f = pending[i];  
+        f.status = 'processing';  
+        renderFiles();  
+        animateProgress(f.id);
 
-    const form = new FormData();  
-    form.append('files', f.file, f.name);  
-    form.append('chunk_mode', chunkMode);
+        var form = new FormData();  
+        form.append('files',      f.file, f.name);  
+        form.append('chunk_mode', chunkMode);
 
-    try {  
-      const res = await fetch('/ingest', { method: 'POST', body: form });  
-      const data = await res.json();
+        try {  
+            var res  = await fetch('/ingest', { method: 'POST', body: form });  
+            var data = await res.json();  
+            if (data.error) throw new Error(data.error);
 
-      if (data.error) throw new Error(data.error);
+            var doc = data.documents && data.documents[0];  
+            if (doc) {  
+                f.chunks          = doc.chunks || [];  
+                f.status          = 'done';  
+                f.chunkMode       = chunkMode;  
+                state.totalChunks = state.totalChunks + f.chunks.length;  
+                toast('✅ ' + f.name + ' — ' + f.chunks.length + ' chunks', 'success');  
+            } else {  
+                f.status = 'error';  
+                toast('No chunks for ' + f.name, 'error');  
+            }  
+        } catch (e) {  
+            f.status = 'error';  
+            toast('Error: ' + e.message, 'error');  
+        }
 
-      const doc = data.documents && data.documents[0];  
-      if (doc) {  
-        f.chunks = doc.chunks || [];  
-        f.status = 'done';  
-        f.chunkMode = chunkMode;  
-        state.totalChunks += f.chunks.length;  
-        toast('✅ ' + f.name + ' — ' + f.chunks.length + ' chunks (' + chunkMode + ')', 'success');  
-      } else {  
-        f.status = 'error';  
-        toast('No chunks returned for ' + f.name, 'error');  
-      }  
-    } catch (e) {  
-      console.error('[INGEST ERROR]', e);  
-      f.status = 'error';  
-      toast('Error: ' + e.message, 'error');  
+        renderFiles();  
     }
 
-    renderFiles();  
-  }
-
-  if (btn) btn.disabled = !state.files.some(function(f) { return f.status === 'pending'; });  
+    var hp = false;  
+    for (var i = 0; i < state.files.length; i = i + 1) {  
+        if (state.files[i].status === 'pending') { hp = true; break; }  
+    }  
+    if (btn) btn.disabled = !hp;  
 }
 
 function animateProgress(id) {  
-  let p = 0;  
-  const iv = setInterval(function() {  
-    p += 12 + Math.random() * 15;  
-    const bar = document.getElementById('pb-' + id);  
-    if (bar) bar.style.width = Math.min(p, 90) + '%';  
-    if (p >= 100) clearInterval(iv);  
-  }, 250);  
-  setTimeout(function() { clearInterval(iv); }, 2500);  
+    var p  = 0;  
+    var iv = setInterval(function() {  
+        p = p + 12 + Math.random() * 15;  
+        var bar = document.getElementById('pb-' + id);  
+        if (bar) bar.style.width = Math.min(p, 90) + '%';  
+        if (p >= 100) clearInterval(iv);  
+    }, 250);  
+    setTimeout(function() { clearInterval(iv); }, 2500);  
 }
 
+/* ══ RE-CHUNK ══ */  
 async function rechunkFile(id, filename, event) {  
-  event.stopPropagation();
+    event.stopPropagation();  
+    var newMode = getChunkMode();  
+    var file    = null;  
+    for (var i = 0; i < state.files.length; i = i + 1) {  
+        if (String(state.files[i].id) === String(id)) { file = state.files[i]; break; }  
+    }  
+    if (!file)                      { toast('File not found.', 'error'); return; }  
+    if (file.chunkMode === newMode) { toast('Already chunked with "' + newMode + '".', 'info'); return; }
 
-  const newMode = getChunkMode();  
-  const file = state.files.find(function(f) { return String(f.id) === String(id); });  
-  if (!file) { toast('File not found.', 'error'); return; }
-
-  if (file.chunkMode === newMode) {  
-    toast('Already chunked with "' + newMode + '" — select a different mode first.', 'info');  
-    return;  
-  }
-
-  const confirmed = confirm('Re-chunk "' + filename + '" using ' + newMode + ' mode?\n\nThis will delete existing vectors and re-embed.');  
-  if (!confirmed) return;
-
-  if (!file.file) {  
-    toast('Please select "' + filename + '" from your device to re-chunk.', 'info');  
-    const picker = document.createElement('input');  
-    picker.type = 'file';  
-    picker.accept = '.pdf,.docx,.doc';  
-    picker.onchange = async function() {  
-      const selected = picker.files[0];  
-      if (!selected) { toast('No file selected.', 'error'); return; }  
-      if (selected.name !== filename) {  
-        toast('Please select the correct file: "' + filename + '"', 'error');  
+    if (!file.file) {  
+        toast('Select "' + filename + '" from your device.', 'info');  
+        var picker    = document.createElement('input');  
+        picker.type   = 'file';  
+        picker.accept = '.pdf,.docx,.doc';  
+        picker.onchange = async function() {  
+            var s = picker.files[0];  
+            if (!s)                  { toast('No file selected.', 'error'); return; }  
+            if (s.name !== filename) { toast('Select the correct file.', 'error'); return; }  
+            file.file = s;  
+            if (!confirm('Re-chunk "' + filename + '" using ' + newMode + '?')) return;  
+            await doRechunk(file, filename, newMode);  
+        };  
+        picker.click();  
         return;  
-      }  
-      file.file = selected;  
-      await doRechunk(file, filename, newMode);  
-    };  
-    picker.click();  
-    return;  
-  }
-
-  await doRechunk(file, filename, newMode);  
+    }  
+    if (!confirm('Re-chunk "' + filename + '" using ' + newMode + '?')) return;  
+    await doRechunk(file, filename, newMode);  
 }
 
 async function doRechunk(file, filename, newMode) {  
-  try {  
-    const delRes = await fetch('/delete', {  
-      method: 'POST',  
-      headers: { 'Content-Type': 'application/json' },  
-      body: JSON.stringify({ filename: filename }),  
-    });  
-    const delData = await delRes.json();  
-    if (delData.error) throw new Error(delData.error);
+    try {  
+        var delRes  = await fetch('/delete', {  
+            method:  'POST',  
+            headers: { 'Content-Type': 'application/json' },  
+            body:    JSON.stringify({ filename: filename })  
+        });  
+        var delData = await delRes.json();  
+        if (delData.error) throw new Error(delData.error);
 
-    state.totalChunks = Math.max(0, state.totalChunks - file.chunks.length);  
-    file.chunks = [];  
-    file.chunkMode = null;  
-    file.status = 'processing';  
-    renderFiles();  
-    animateProgress(file.id);
+        state.totalChunks = Math.max(0, state.totalChunks - file.chunks.length);  
+        file.chunks    = [];  
+        file.chunkMode = null;  
+        file.status    = 'processing';  
+        renderFiles();  
+        animateProgress(file.id);
 
-    const form = new FormData();  
-    form.append('files', file.file, file.name);  
-    form.append('chunk_mode', newMode);
+        var form = new FormData();  
+        form.append('files',      file.file, file.name);  
+        form.append('chunk_mode', newMode);
 
-    const res = await fetch('/ingest', { method: 'POST', body: form });  
-    const data = await res.json();  
-    if (data.error) throw new Error(data.error);
+        var res  = await fetch('/ingest', { method: 'POST', body: form });  
+        var data = await res.json();  
+        if (data.error) throw new Error(data.error);
 
-    const doc = data.documents && data.documents[0];  
-    if (doc) {  
-      file.chunks = doc.chunks || [];  
-      file.status = 'done';  
-      file.chunkMode = newMode;  
-      state.totalChunks += file.chunks.length;  
-      toast('✅ "' + filename + '" re-chunked — ' + file.chunks.length + ' chunks (' + newMode + ')', 'success');  
-    } else {  
-      file.status = 'error';  
-      toast('Re-chunk failed for ' + filename, 'error');  
+        var doc = data.documents && data.documents[0];  
+        if (doc) {  
+            file.chunks       = doc.chunks || [];  
+            file.status       = 'done';  
+            file.chunkMode    = newMode;  
+            state.totalChunks = state.totalChunks + file.chunks.length;  
+            toast('✅ Re-chunked — ' + file.chunks.length + ' chunks', 'success');  
+        } else {  
+            file.status = 'error';  
+            toast('Re-chunk failed.', 'error');  
+        }  
+    } catch (e) {  
+        file.status = 'error';  
+        toast('Re-chunk failed: ' + e.message, 'error');  
     }  
-  } catch (e) {  
-    console.error('[RECHUNK ERROR]', e);  
-    file.status = 'error';  
-    toast('Re-chunk failed: ' + e.message, 'error');  
-  }
-
-  renderFiles();  
+    renderFiles();  
 }
 
+/* ══ QUERY — CHAT ══ */  
 function handleKey(e) {  
-  if (e.key === 'Enter' && !e.shiftKey) {  
-    e.preventDefault();  
-    submitQuery();  
-  }  
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitQuery(); }  
 }
 
 function resize(el) {  
-  el.style.height = 'auto';  
-  el.style.height = Math.min(el.scrollHeight, 150) + 'px';  
+    el.style.height = 'auto';  
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';  
 }
 
 async function submitQuery() {  
-  const queryEl = document.getElementById('queryInput');  
-  const query = queryEl ? queryEl.value.trim() : '';  
-  if (!query) { toast('Enter a question first.', 'error'); return; }
+    var queryEl = document.getElementById('queryInput');  
+    var query   = queryEl ? queryEl.value.trim() : '';  
+    if (!query) { toast('Enter a question first.', 'error'); return; }
 
-  const ready = state.files.filter(function(f) { return f.status === 'done'; });  
-  if (!ready.length) { toast('Process at least one file first.', 'error'); return; }
+    var hasReady = false;  
+    for (var i = 0; i < state.files.length; i = i + 1) {  
+        if (state.files[i].status === 'done') { hasReady = true; break; }  
+    }  
+    if (!hasReady) { toast('Process at least one file first.', 'error'); return; }
 
-  setLoading(true);  
-  const t0 = Date.now();
-
-  try {  
-    const topKEl = document.getElementById('topK');  
-    const tempEl = document.getElementById('temp');
-
-    const res = await fetch('/query', {  
-      method: 'POST',  
-      headers: { 'Content-Type': 'application/json' },  
-      body: JSON.stringify({  
-        query: query,  
-        top_k: parseInt(topKEl ? topKEl.value : '5') || 5,  
-        temperature: parseFloat(tempEl ? tempEl.value : '0.2') || 0.2,  
-      }),  
-    });
-
-    const data = await res.json();  
-    if (data.error) throw new Error(data.error);
-
-    const elapsed = ((Date.now() - t0) / 1000).toFixed(2) + 's';  
-    state.queryCount++;  
-    setText('sQueries', state.queryCount);
-
-    renderAnswer(query, data.answer, data.sources, elapsed);  
     queryEl.value = '';  
     resize(queryEl);  
-  } catch (e) {  
-    toast('Error: ' + e.message, 'error');  
-  }
+    setLoading(true);
 
-  setLoading(false);  
+    var empty = document.getElementById('chatEmpty');  
+    if (empty) empty.remove();
+
+    appendUserMessage(query);  
+    var typingId = appendTyping();  
+    var t0       = Date.now();
+
+    try {  
+        var res  = await fetch('/query', {  
+            method:  'POST',  
+            headers: { 'Content-Type': 'application/json' },  
+            body:    JSON.stringify({  
+                query:       query,  
+                top_k:       getTopK(),  
+                temperature: getTemp()  
+            })  
+        });  
+        var data = await res.json();  
+        if (data.error) throw new Error(data.error);
+
+        var elapsed = ((Date.now() - t0) / 1000).toFixed(2) + 's';  
+        state.queryCount = state.queryCount + 1;  
+        setText('sQueries', state.queryCount);
+
+        removeTyping(typingId);  
+        var answerText = (data.answer && typeof data.answer === 'string')  
+            ? data.answer  
+            : 'No answer returned.';  
+        appendAIMessage(answerText, data.sources, elapsed);  
+    } catch (e) {  
+        removeTyping(typingId);  
+        appendAIMessage('Error: ' + e.message, [], '0s');  
+        toast('Error: ' + e.message, 'error');  
+    }
+
+    setLoading(false);  
 }
 
-function renderAnswer(query, answer, sources, elapsed) {  
-  const area = document.getElementById('results');  
-  const empty = document.getElementById('emptyState');  
-  if (empty) empty.remove();
+function appendUserMessage(query) {  
+    var area = document.getElementById('chatArea');  
+    var row  = document.createElement('div');  
+    row.className = 'chat-row';  
+    row.innerHTML = '<div class="chat-user"><div class="chat-user-bubble">' + esc(query) + '</div></div>';  
+    area.appendChild(row);  
+    area.scrollTop = area.scrollHeight;  
+}
 
-  const cardId = 'card-' + Date.now();  
-  const card = document.createElement('div');  
-  card.className = 'answer-card expanded';  
-  card.id = cardId;
-
-  let sourcesHTML = '';  
-  if (sources && sources.length) {  
-    sources.forEach(function(s, i) {  
-      const ctype = s.chunk_type || 'recursive';  
-      const chunkNum = (s.chunk_index != null ? s.chunk_index : i) + 1;  
-      const score = s.score ? s.score.toFixed(3) : '—';  
-      sourcesHTML += '<div class="source-card" onclick="this.classList.toggle(\'open\')">'  
-                + '<div class="src-top">'  
-                + '<span class="src-file">📄 ' + esc(s.filename) + '</span>'  
-                + '<span class="src-tag">Chunk #' + chunkNum + '</span>'  
-                + '<span class="chunk-type-tag ' + ctype + '">' + ctype + '</span>'  
-                + '</div>'  
-                + '<div class="src-meta">Page ' + s.page + ' · Similarity: <span class="sim">' + score + '</span></div>'  
-                + '<div class="src-preview">' + esc(s.text) + '</div>'  
-                + '<div class="src-full">' + esc(s.text) + '</div>'  
+function appendTyping() {  
+    var area = document.getElementById('chatArea');  
+    var id   = 'typing-' + Date.now();  
+    var row  = document.createElement('div');  
+    row.className = 'chat-row';  
+    row.id        = id;  
+    row.innerHTML = '<div class="chat-ai">'  
+                + '<div class="chat-ai-header"><div class="chat-ai-avatar">&#x2B21;</div>GPT-4.1 &middot; thinking&hellip;</div>'  
+                + '<div class="chat-typing"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>'  
                 + '</div>';  
-    });  
-  }
-
-  card.innerHTML = '<div class="card-head" onclick="toggleCard(\'' + cardId + '\')">'  
-        + '<div class="card-head-left">'  
-        + '<div class="q-tag">Question · GPT-4.1 · ' + elapsed + '</div>'  
-        + '<div class="q-text">' + esc(query) + '</div>'  
-        + '</div>'  
-        + '<div class="card-expand-btn" title="Expand / Collapse">▲</div>'  
-        + '</div>'  
-        + '<div class="card-body-wrap">'  
-        + '<div class="card-body">'  
-        + '<div class="a-tag">GPT-4.1 Answer</div>'  
-        + '<div class="a-text">' + fmtAnswer(answer) + '</div>'  
-        + '</div>'  
-        + '<div class="sources-wrap">'  
-        + '<div class="sources-label">📌 Retrieved Sources (' + (sources ? sources.length : 0) + ')</div>'  
-        + '<div class="sources-grid">' + sourcesHTML + '</div>'  
-        + '</div>'  
-        + '</div>';
-
-  area.insertBefore(card, area.firstChild);
-
-  if (window.MathJax) {  
-    MathJax.typesetPromise([card]).catch(function(err) { console.error('MathJax error:', err); });  
-  }
-
-  card.scrollIntoView({ behavior: 'smooth', block: 'start' });  
+    area.appendChild(row);  
+    area.scrollTop = area.scrollHeight;  
+    return id;  
 }
 
-function toggleCard(cardId) {  
-  const card = document.getElementById(cardId);  
-  if (!card) return;  
-  card.classList.toggle('expanded');  
+function removeTyping(id) {  
+    var el = document.getElementById(id);  
+    if (el) el.remove();  
+}
+
+function appendAIMessage(answer, sources, elapsed) {  
+    var area = document.getElementById('chatArea');  
+    var row  = document.createElement('div');  
+    row.className = 'chat-row';
+
+    var sourcesHTML = '';  
+    if (sources && sources.length) {  
+        var chips = '';  
+        for (var i = 0; i < sources.length; i = i + 1) {  
+            var s        = sources[i];  
+            var ctype    = s.chunk_type || 'recursive';  
+            var chunkNum = (s.chunk_index != null ? s.chunk_index : i) + 1;  
+            var score    = s.score ? s.score.toFixed(2) : '—';  
+            chips = chips  
+                                + '<div class="source-chip" style="animation-delay:' + (i * 0.05) + 's"'  
+                                + ' onclick="openChunkModal(\'' + esc(s.filename) + '\', ' + chunkNum  
+                                + ', ' + s.page + ', \'' + esc(s.text || '') + '\', \'' + ctype + '\')">'  
+                                + '<span class="chip-file">&#128196; ' + esc(s.filename) + '</span>'  
+                                + '<span class="chip-info">pg.' + s.page + '</span>'  
+                                + '<span class="chip-sim">' + score + '</span>'  
+                                + '</div>';  
+        }  
+        sourcesHTML = '<div class="chat-sources">'  
+                        + '<div class="chat-sources-label">Sources (' + sources.length + ')</div>'  
+                        + '<div class="sources-chips">' + chips + '</div>'  
+                        + '</div>';  
+    }
+
+    row.innerHTML = '<div class="chat-ai">'  
+                + '<div class="chat-ai-header">'  
+                + '<div class="chat-ai-avatar">&#x2B21;</div>'  
+                + 'GPT-4.1 <span style="color:var(--t3);margin-left:6px;">&middot; ' + elapsed + '</span>'  
+                + '</div>'  
+                + '<div class="chat-ai-bubble">' + fmtAnswer(answer) + '</div>'  
+                + sourcesHTML  
+                + '</div>';
+
+    area.appendChild(row);  
+    area.scrollTop = area.scrollHeight;
+
+    if (window.MathJax) {  
+        MathJax.typesetPromise([row]).catch(function(err) { console.error('MathJax:', err); });  
+    }  
 }
 
 function setLoading(on) {  
-  const btn = document.getElementById('askBtn');  
-  const label = document.getElementById('askLabel');  
-  if (btn) btn.disabled = on;  
-  if (label) label.innerHTML = on ? '<span class="spin"></span> Thinking…' : '➤ Ask';  
+    var btn   = document.getElementById('askBtn');  
+    var label = document.getElementById('askLabel');  
+    if (btn)   btn.disabled   = on;  
+    if (label) label.innerHTML = on ? '<span class="spin"></span>' : '&#x25BA;';  
 }
 
+/* ══ DELETE ══ */  
 async function deleteFile(id, filename, event) {  
-  event.stopPropagation();
+    event.stopPropagation();  
+    if (!confirm('Delete "' + filename + '" from vector store?')) return;  
+    try {  
+        var res  = await fetch('/delete', {  
+            method:  'POST',  
+            headers: { 'Content-Type': 'application/json' },  
+            body:    JSON.stringify({ filename: filename })  
+        });  
+        var data = await res.json();  
+        if (data.error) throw new Error(data.error);
 
-  const confirmed = confirm('Delete "' + filename + '" from the vector store?');  
-  if (!confirmed) return;
+        var file = null;  
+        for (var i = 0; i < state.files.length; i = i + 1) {  
+            if (String(state.files[i].id) === String(id)) { file = state.files[i]; break; }  
+        }  
+        if (file) state.totalChunks = Math.max(0, state.totalChunks - file.chunks.length);
 
-  try {  
-    const res = await fetch('/delete', {  
-      method: 'POST',  
-      headers: { 'Content-Type': 'application/json' },  
-      body: JSON.stringify({ filename: filename }),  
-    });
+        var nf = [];  
+        for (var i = 0; i < state.files.length; i = i + 1) {  
+            if (String(state.files[i].id) !== String(id)) nf.push(state.files[i]);  
+        }  
+        state.files = nf;  
+        renderFiles();
 
-    const data = await res.json();  
-    if (data.error) throw new Error(data.error);
-
-    const file = state.files.find(function(f) { return String(f.id) === String(id); });  
-    if (file) {  
-      state.totalChunks = Math.max(0, state.totalChunks - file.chunks.length);  
+        var btn = document.getElementById('processBtn');  
+        var hp  = false;  
+        for (var i = 0; i < state.files.length; i = i + 1) {  
+            if (state.files[i].status === 'pending') { hp = true; break; }  
+        }  
+        if (btn) btn.disabled = !hp;  
+        toast('🗑️ "' + filename + '" deleted', 'success');  
+    } catch (e) {  
+        toast('Delete failed: ' + e.message, 'error');  
     }  
-    state.files = state.files.filter(function(f) { return String(f.id) !== String(id); });
-
-    renderFiles();
-
-    const btn = document.getElementById('processBtn');  
-    if (btn) btn.disabled = !state.files.some(function(f) { return f.status === 'pending'; });
-
-    toast('🗑️ "' + filename + '" deleted — ' + data.deleted_vectors + ' vectors removed', 'success');  
-  } catch (e) {  
-    console.error('[DELETE ERROR]', e);  
-    toast('Delete failed: ' + e.message, 'error');  
-  }  
 }
 
+/* ══ CLEAR ALL ══ */  
+async function clearAll() {  
+    if (!confirm('Delete ALL documents from the vector store? This cannot be undone.')) return;  
+    try {  
+        await fetch('/clear', { method: 'POST', headers: { 'Content-Type': 'application/json' } });  
+        state.files       = [];  
+        state.totalChunks = 0;  
+        renderFiles();  
+        setText('sChunks', 0);  
+        setText('sFiles',  0);  
+        toast('🗑️ All documents cleared', 'success');  
+    } catch (e) {  
+        toast('Clear failed: ' + e.message, 'error');  
+    }  
+}
+
+/* ══ UTILITIES ══ */  
 function esc(str) {  
-  return String(str)  
-    .replace(/&/g, '&amp;')  
-    .replace(/</g, '&lt;')  
-    .replace(/>/g, '&gt;')  
-    .replace(/"/g, '&quot;');  
+    return String(str)  
+        .replace(/&/g,  '&amp;')  
+        .replace(/</g,  '&lt;')  
+        .replace(/>/g,  '&gt;')  
+        .replace(/"/g,  '&quot;');  
 }
 
 function fmtAnswer(text) {  
-  let out = text;  
-  out = out.replace(/^### (.+)$/gm, '<h4 class="ans-h4">$1</h4>');  
-  out = out.replace(/^## (.+)$/gm, '<h3 class="ans-h3">$1</h3>');  
-  out = out.replace(/^# (.+)$/gm, '<h2 class="ans-h2">$1</h2>');  
-  out = out.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');  
-  out = out.replace(/\*(.+?)\*/g, '<em>$1</em>');  
-  out = out.replace(/^---+$/gm, '<hr class="ans-hr"/>');  
-  out = out.replace(/^[\-\*] (.+)$/gm, '<li class="ans-li">$1</li>');  
-  out = out.replace(/(<li class="ans-li">[\s\S]*?<\/li>)/g, '<ul class="ans-ul">$1</ul>');  
-  out = out.replace(/<\/ul>\s*<ul class="ans-ul">/g, '');  
-  out = out.replace(/^\d+\. (.+)$/gm, '<li class="ans-li">$1</li>');  
-  out = out.replace(/`([^`]+)`/g, '<code class="ans-code">$1</code>');  
-  out = out.replace(/\n(?!<(h[2-4]|ul|li|hr))/g, '<br/>');  
-  return out;  
+    var out = (text !== null && text !== undefined) ? String(text) : '';
+
+    out = out.replace(/^### (.+)$/gm, '<h4 class="ans-h4">$1</h4>');  
+    out = out.replace(/^## (.+)$/gm,  '<h3 class="ans-h3">$1</h3>');  
+    out = out.replace(/^# (.+)$/gm,   '<h2 class="ans-h2">$1</h2>');  
+    out = out.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');  
+    out = out.replace(/\*(.+?)\*/g,     '<em>$1</em>');  
+    out = out.replace(/^---+$/gm,       '<hr class="ans-hr"/>');
+
+    // TABLE PARSER — handles tables with or without separator rows  
+    var lines  = out.split('\n');  
+    var result = [];  
+    var i      = 0;
+
+    while (i < lines.length) {  
+        var line = lines[i].trim();
+
+        if (line.startsWith('|') && line.endsWith('|')) {  
+            // Collect all consecutive table lines  
+            var tableLines = [];  
+            while (i < lines.length && lines[i].trim().startsWith('|') && lines[i].trim().endsWith('|')) {  
+                tableLines.push(lines[i].trim());  
+                i = i + 1;  
+            }
+
+            // Build HTML table  
+            var tableHTML  = '<div class="ans-table-wrap"><table class="ans-table">';  
+            var firstRow   = true;
+
+            for (var r = 0; r < tableLines.length; r = r + 1) {  
+                var tline = tableLines[r];
+
+                // Skip separator lines like |---|---|  
+                if (/^\|[\s\-:|]+\|$/.test(tline)) continue;
+
+                var cells  = tline.split('|');  
+                var tag    = firstRow ? 'th' : 'td';  
+                var rowHTML = '<tr>';
+
+                for (var c = 0; c < cells.length; c = c + 1) {  
+                    var cell = cells[c].trim();  
+                    if (cell !== '') {  
+                        rowHTML = rowHTML + '<' + tag + '>' + cell + '</' + tag + '>';  
+                    }  
+                }
+
+                rowHTML   = rowHTML + '</tr>';  
+                tableHTML = tableHTML + rowHTML;  
+                firstRow  = false;  
+            }
+
+            tableHTML = tableHTML + '</table></div>';  
+            result.push(tableHTML);
+
+        } else {  
+            result.push(lines[i]);  
+            i = i + 1;  
+        }  
+    }
+
+    out = result.join('\n');
+
+    out = out.replace(/^[\-\*] (.+)$/gm, '<li class="ans-li">$1</li>');  
+    out = out.replace(/(<li class="ans-li">[\s\S]*?<\/li>)/g, '<ul class="ans-ul">$1</ul>');  
+    out = out.replace(/<\/ul>\s*<ul class="ans-ul">/g, '');  
+    out = out.replace(/^\d+\. (.+)$/gm,    '<li class="ans-li">$1</li>');  
+    out = out.replace(/`([^`]+)`/g,        '<code class="ans-code">$1</code>');  
+    out = out.replace(/(\(Page[^)]+\))/g,  '<span class="ans-cite">$1</span>');  
+    out = out.replace(/\n(?!<(h[2-4]|ul|li|hr|div|table))/g, '<br/>');
+
+    return out;  
 }
 
 function fmtSize(b) {  
-  if (b < 1024) return b + ' B';  
-  if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';  
-  return (b / 1048576).toFixed(1) + ' MB';  
+    if (b < 1024)    return b + ' B';  
+    if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';  
+    return (b / 1048576).toFixed(1) + ' MB';  
 }
 
 function toast(msg, type) {  
-  type = type || 'info';  
-  const wrap = document.getElementById('toasts');  
-  if (!wrap) return;  
-  const el = document.createElement('div');  
-  el.className = 'toast ' + type;  
-  el.innerHTML = '<span class="tdot"></span>' + msg;  
-  wrap.appendChild(el);  
-  setTimeout(function() { el.remove(); }, 3800);  
+    type = type || 'info';  
+    var wrap = document.getElementById('toasts');  
+    if (!wrap) return;  
+    var el = document.createElement('div');  
+    el.className = 'toast ' + type;  
+    el.innerHTML = '<span class="tdot"></span>' + msg;  
+    wrap.appendChild(el);  
+    setTimeout(function() { el.remove(); }, 3800);  
 }
 
-async function clearAndStart() {  
-  try {  
-    await fetch('/clear', { method: 'POST', headers: { 'Content-Type': 'application/json' } });  
-  } catch (e) {  
-    console.warn('[CLEAR] Failed:', e.message);  
-  }  
-}
-
-clearAndStart();  

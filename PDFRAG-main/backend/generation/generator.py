@@ -23,11 +23,19 @@ class Generator:
             {
                 "role": "system",  
                 "content": (  
-                    "You are a helpful assistant analyzing multiple PDF documents. "  
-                    "The context below contains chunks from MULTIPLE different documents — each labeled with its source filename. "  
-                    "When answering, address EACH document separately by name. "  
-                    "If a document has insufficient context, say so explicitly rather than repeating filler text. "  
-                    "Never fabricate information not present in the context."  
+                    "You are a precise, expert assistant analysing document content. "  
+                    "Formatting rules:\n"   
+                    "- Use ## headings to separate major sections.\n"  
+                    "- Use **bold** for key terms.\n"  
+                    "- Use bullet points (- item) for lists, never plain paragraphs.\n"  
+                    "- Always include a | Column | Column | markdown table at the end.\n"  
+                    "- Never write walls of text — break everything into points.\n"  
+                    "- If information is missing from context, state it clearly in one line.\n"  
+                    "- Never fabricate. Stick strictly to the provided document context.\n" 
+                    "- Scan the ENTIRE provided context thoroughly before answering.\n"  
+                    "- Do not stop listing items early — include EVERY quantity mentioned across ALL source chunks.\n"  
+                    "- If the same quantity appears in multiple chunks, list it only once with the most complete information.\n"  
+
                 ),  
             },  
             {

@@ -1,128 +1,190 @@
 <!DOCTYPE html>  
 <html lang="en">  
 <head>  
-  <!-- MathJax for LaTeX rendering -->  
-<script>  
-  window.MathJax = {  
-    tex: {  
-      inlineMath: [['\\(', '\\)'], ['$', '$']],  
-      displayMath: [['\\[', '\\]'], ['$$', '$$']],  
-    },  
-    options: {  
-      skipHtmlTags: ['script', 'noscript', 'style', 'textarea']  
-    }  
-  };  
-</script>  
-<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>  
-
-  <meta charset="UTF-8"/>  
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>  
-  <title>RAG — G+D</title>  
-  <link rel="stylesheet" href="styles.css"/>  
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>  
+    <meta charset="UTF-8"/>  
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>  
+    <title>PDF RAG — G+D</title>  
+    <link rel="icon" type="image/x-icon" href="favicon.ico"/>  
+    <link rel="stylesheet" href="styles.css"/>  
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>  
+    <script>  
+        window.MathJax = {  
+            tex: { inlineMath: [['\\(','\\)'],['$','$']], displayMath: [['\\[','\\]'],['$$','$$']] },  
+            options: { skipHtmlTags: ['script','noscript','style','textarea'] }  
+        };  
+    </script>  
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>  
 </head>  
 <body>
 
-  <header class="header">  
+<header class="header">  
     <div class="header-left">  
-      <div class="logo">⬡<strong>RAG</strong></div>  
-      <div class="badge">G+D INTELLIGENCE</div>  
+        <div class="logo">&#x2B21; PDF<strong>RAG</strong></div>  
+        <div class="badge">G+D INTELLIGENCE</div>  
     </div>  
-    <div class="model-pill"><span class="dot"></span>GPT-4.1 · text-embedding-3-small</div>  
-  </header>
+    <div class="model-pill">  
+        <span class="dot"></span>  
+        GPT-4.1 &middot; text-embedding-3-small  
+    </div>  
+</header>
 
-  <div class="layout">
+<div class="layout">
 
-    <!-- LEFT SIDEBAR -->  
     <aside class="sidebar">
 
-      <p class="label">Upload Documents</p>
+        <p class="label">Upload Documents</p>
 
-      <div class="upload-zone" id="uploadZone">  
-        <input type="file" id="fileInput" multiple accept=".pdf,.docx,.doc,.csv"/>  
-        <div class="upload-icon-wrap"><span>↑</span></div>  
-        <p class="upload-title">Drop PDF/DOCX/CSV here</p>  
-        <p class="upload-sub">or click to browse</p>  
-      </div>
+        <div class="upload-zone" id="uploadZone">  
+            <input type="file" id="fileInput" multiple accept=".pdf,.docx,.doc" style="display:none;"/>  
+            <div class="upload-icon-wrap"><span>&#x2191;</span></div>  
+            <p class="upload-title">Drop PDF / DOCX here</p>  
+            <p class="upload-sub">or click to browse</p>  
+        </div>
 
-      <!-- ── CHUNKING MODE DROPDOWN ── -->  
-<div class="chunk-mode-wrap">  
-  <label class="chunk-mode-label-text" for="chunkModeSelect">  
-    Chunking Mode  
-  </label>  
-  <div class="custom-select-wrap">  
-    <select id="chunkModeSelect" class="chunk-select" onchange="updateChunkMode()">  
-      <option value="recursive">⚡ Recursive (Fast)</option>  
-      <option value="semantic">🧠 Semantic (Smart)</option>  
-      <option value="sliding">🪟 Sliding Window</option>  
-      <option value="fixed">📏 Fixed Size</option>  
-    </select>  
-    <span class="select-arrow">▾</span>  
-  </div>  
-  <p class="chunk-mode-desc" id="chunkModeDesc">  
-    Splits by character count — fast &amp; reliable.  
-  </p>  
+        <div class="chunk-mode-wrap">  
+            <label class="chunk-mode-label-text" for="chunkModeSelect">Chunking Mode</label>  
+            <div class="custom-select-wrap">  
+                <select id="chunkModeSelect" class="chunk-select" onchange="updateChunkMode()">  
+                    <option id="chunkmodeOptionRecursive" class ="chunkmodeoption" value="recursive">&#x26A1; Recursive (Fast)</option>  
+                    <option id="chunkmodeOptionSemantic" class ="chunkmodeoption" value="semantic">&#x1F9E0; Semantic (Smart)</option>  
+                    <option id="chunkmodeOptionSliding" class ="chunkmodeoption" value="sliding">&#x1FA9F; Sliding Window</option>  
+                    <option id="chunkmodeOptionFixed" class ="chunkmodeoption" value="fixed">&#x1F4CF; Fixed Size</option>  
+                </select>  
+                <span class="select-arrow">&#x25BE;</span>  
+            </div>  
+            <p class="chunk-mode-desc" id="chunkModeDesc">  
+                Splits by character count &mdash; fast &amp; reliable.  
+            </p>  
+        </div>
+        <div class="action-row">  
+            <button class="btn-process" id="processBtn" disabled onclick="ingestFiles()">  
+                &#x26A1; Process &amp; Embed  
+            </button>  
+            <button class="btn-clear-all" onclick="clearAll()" title="Delete all documents from vector store">  
+                &#x1F5D1;  
+            </button>  
+        </div>
+        <div class="query-settings-wrap">  
+    <div class="qs-header" onclick="toggleQuerySettings()" style="cursor:pointer;">  
+        <span class="qs-icon">&#x2699;</span>  
+        <span class="qs-title">Query Settings</span>  
+        <span class="qs-toggle-arrow" id="qsArrow">&#x25BE;</span>  
+    </div>  
+    
+    <div class="qs-body" id="qsBody">
+
+        <!-- Top-K -->  
+        <div class="qs-item">  
+            <div class="qs-item-top">  
+                <label class="qs-label" for="topK">Top-K</label>  
+                <div class="qs-topk-controls">  
+                    <span class="qs-value" id="topKDisplay">5</span>  
+                    <button class="btn-topk-max" id="btnTopKMax" onclick="toggleTopKMax()" title="Use all chunks">MAX</button>  
+                </div>  
+            </div>  
+            <div class="qs-slider-wrap">  
+                <input  
+                    type="range"  
+                    id="topK"  
+                    class="qs-slider"  
+                    min="1"  
+                    max="20"  
+                    value="5"  
+                    oninput="updateTopK(this.value)"  
+                />  
+            </div>  
+            <p class="qs-hint">Chunks retrieved per query</p>  
+        </div>
+
+        <div class="qs-divider"></div>
+
+        <!-- Temperature -->  
+        <div class="qs-item">  
+            <div class="qs-item-top">  
+                <label class="qs-label" for="temp">Temperature</label>  
+                <span class="qs-value" id="tempDisplay">0.2</span>  
+            </div>  
+            <div class="qs-slider-wrap">  
+                <input  
+                    type="range"  
+                    id="temp"  
+                    class="qs-slider"  
+                    min="0"  
+                    max="1"  
+                    step="0.1"  
+                    value="0.2"  
+                    oninput="updateTemp(this.value)"  
+                />  
+            </div>  
+            <p class="qs-hint">Response creativity (0 = precise, 1 = creative)</p>  
+        </div>
+
+    </div>  
 </div>  
 
+        <p class="label">  
+            Files <span class="count" id="fileCount">0</span>  
+        </p>
 
-      <button class="btn-process" id="processBtn" disabled onclick="ingestFiles()">  
-        ⚡ Process &amp; Embed  
-      </button>
+        <div class="file-list" id="fileList">  
+            <div class="no-files" id="noFiles">&#x1F4C2; No files yet</div>  
+        </div>
 
-      <p class="label" style="margin-top:16px;">  
-        Files <span class="count" id="fileCount">0</span>  
-      </p>
-
-      <div class="file-list" id="fileList">  
-        <div class="no-files" id="noFiles">📂 No files yet</div>  
-      </div>
-
-      <div class="stats">  
-        <div class="stat"><span id="sChunks">0</span><small>Chunks</small></div>  
-        <div class="stat-sep"></div>  
-        <div class="stat"><span id="sFiles">0</span><small>Files</small></div>  
-        <div class="stat-sep"></div>  
-        <div class="stat"><span id="sQueries">0</span><small>Queries</small></div>  
-      </div>
+        <div class="stats">  
+            <div class="stat"><span id="sChunks">0</span><small>Chunks</small></div>  
+            <div class="stat-sep"></div>  
+            <div class="stat"><span id="sFiles">0</span><small>Files</small></div>  
+            <div class="stat-sep"></div>  
+            <div class="stat"><span id="sQueries">0</span><small>Queries</small></div>  
+        </div>
 
     </aside>
 
-    <!-- RIGHT MAIN -->  
     <main class="main">
 
-      <div class="query-bar">  
-        <div class="query-box" id="queryBox">  
-          <textarea  
-            id="queryInput"  
-            placeholder="Ask anything about your documents…"  
-            rows="1"  
-            onkeydown="handleKey(event)"  
-            oninput="resize(this)"  
-          ></textarea>  
-          <div class="query-footer">  
-            <div class="opts">  
-              <label>Top-K <input type="number" id="topK" value="5" min="1" max="20"/></label>  
-              <label>Temp  <input type="number" id="temp" value="0.2" min="0" max="1" step="0.1"/></label>  
+        <div class="chat-area" id="chatArea">  
+            <div class="chat-empty" id="chatEmpty">  
+                <div class="orb">&#x1F9E0;</div>  
+                <h2>Start a conversation</h2>  
+                <p>Upload and process documents,<br/>then ask questions below.</p>  
             </div>  
-            <button class="btn-ask" id="askBtn" onclick="submitQuery()">  
-              <span id="askLabel">➤ Ask</span>  
-            </button>  
-          </div>  
-        </div>  
-      </div>
+        </div>
 
-      <div class="results" id="results">  
-        <div class="empty" id="emptyState">  
-          <div class="orb">🧠</div>  
-          <h2>Start by uploading</h2>  
-          <p>Upload → Process → Ask</p>  
-        </div>  
-      </div>
+        <div class="query-bar">  
+            <div class="query-outer">  
+                <textarea  
+                    id="queryInput"  
+                    class="query-textarea"  
+                    placeholder="Ask a question about your documents&hellip;"  
+                    rows="1"  
+                    onkeydown="handleKey(event)"  
+                    oninput="resize(this)"  
+                ></textarea>  
+                <button class="btn-ask" id="askBtn" onclick="submitQuery()">  
+                    <span id="askLabel">&#x25BA;</span>  
+                </button>  
+            </div>  
+            <div class="query-hint">  
+                <kbd>Enter</kbd> to send &nbsp;&middot;&nbsp; <kbd>Shift+Enter</kbd> new line  
+            </div>  
+        </div>
 
     </main>  
-  </div>
+</div>
 
-  <div class="toasts" id="toasts"></div>  
-  <script src="app.js"></script>  
+<div class="modal-overlay" id="chunkModal" onclick="closeChunkModal()">  
+    <div class="modal-box" onclick="event.stopPropagation()">  
+        <div class="modal-header">  
+            <div class="modal-title" id="modalTitle">Chunk Preview</div>  
+            <button class="modal-close" onclick="closeChunkModal()">&#x2715;</button>  
+        </div>  
+        <div class="modal-meta" id="modalMeta"></div>  
+        <div class="modal-body" id="modalBody"></div>  
+    </div>  
+</div>
+
+<div class="toasts" id="toasts"></div>  
+<script src="app.js"></script>  
 </body>  
 </html>  
+ss

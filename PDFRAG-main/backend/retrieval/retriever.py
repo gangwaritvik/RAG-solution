@@ -38,10 +38,10 @@ class Retriever:
                 per_doc[fname] = []  
             per_doc[fname].append(hit)
 
-        # ── Step 3: Score each document by avg similarity of its TOP 3 chunks ──  
+        # ── Step 3: Score each document by avg similarity of its TOP 5 chunks ──  
         doc_scores = {}  
         for fname, hits in per_doc.items():  
-            top_hits       = hits[:3]   # top 3 chunks per doc  
+            top_hits       = hits[:5]   # top 5 chunks per doc  
             avg_score      = np.mean([h.get("score", 0) for h in top_hits])  
             doc_scores[fname] = avg_score  
             log.info(f"[RETRIEVER] Doc score — {fname}: {avg_score:.3f}")

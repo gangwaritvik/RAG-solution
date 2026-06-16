@@ -20,6 +20,7 @@ from backend.retrieval.retriever import Retriever
 from backend.generation.generator import Generator  
 from backend.utils.parser import parse_multipart_full  
 from backend.utils.logger import get_logger
+  
 
 log = get_logger("main")
 
@@ -31,8 +32,12 @@ loader       = DocumentLoader(upload_dir=UPLOAD_DIR)
 chunker      = Chunker(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)  
 embedder     = Embedder()  
 vector_store = VectorStore(persist_dir=CHROMA_DIR)  
-retriever    = Retriever(embedder, vector_store)  
+retriever = Retriever(embedder, vector_store)
 generator    = Generator()
+
+# ── Clear stale vectors on startup ──  
+vector_store.clear()  
+log.info("[STARTUP] Vector store cleared — fresh session started")  
 
 
 def get_chunker(mode: str):  
@@ -157,8 +162,7 @@ class RAGHandler(BaseHTTPRequestHandler):
 
                 if not (filename.lower().endswith(".pdf") or  
                         filename.lower().endswith(".docx") or  
-                        filename.lower().endswith(".doc") or
-                        filename.lower().endswith(".csv")):  
+                        filename.lower().endswith(".doc")):  
                     log.warning(f"[INGEST] Skipping unsupported file: {filename}")  
                     continue  
 
@@ -302,7 +306,7 @@ if __name__ == "__main__":
     HOST, PORT = "localhost", 8000  
     server = HTTPServer((HOST, PORT), RAGHandler)  
     log.info("=" * 46)  
-    log.info("  📄  PDF RAG Pipeline — Enterprise")  
+    log.info("  📄 RAG Pipeline — Enterprise")  
     log.info(f"  🌐  http://{HOST}:{PORT}")  
     log.info("  🛑  Stop: Ctrl + C")  
     log.info("=" * 46)  

@@ -4,7 +4,6 @@ from typing import List, Dict, Any
 
 from backend.ingestion.loaders.pdf_loader import PDFLoader  
 from backend.ingestion.loaders.docx_loader import DOCXLoader  
-from backend.ingestion.loaders.csv_loader import CSVLoader  
 from backend.utils.logger import get_logger
 
 log = get_logger("document_loader")
@@ -12,8 +11,7 @@ log = get_logger("document_loader")
 # Supported extensions mapped to loader classes  
 SUPPORTED_LOADERS = {  
     ".pdf":  PDFLoader,  
-    ".docx": DOCXLoader,  
-    ".csv":  CSVLoader,  
+    ".docx": DOCXLoader
 }
 
 
