@@ -77,9 +77,16 @@ class RAGHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):  
         path = urlparse(self.path).path  
+        
+        # Static files
         if path in self.STATIC:  
             filename, ctype = self.STATIC[path]  
-            self.serve_file(os.path.join(FRONTEND_DIR, filename), ctype)  
+            self.serve_file(os.path.join(FRONTEND_DIR, filename), ctype)
+        
+        # Group endpoints
+        elif path.startswith("/group/"):
+            self.handle_group_get(path)
+        
         else:  
             self.send_error(404, "Not Found")
     def handle_clear(self):  
@@ -132,7 +139,15 @@ class RAGHandler(BaseHTTPRequestHandler):
         elif path == "/delete":          
             self.handle_delete()  
         elif path == "/clear":  
-            self.handle_clear()  
+            self.handle_clear()
+        
+        # Conversation group endpoints
+        elif path == "/group/create":
+            self.handle_group_create()
+        elif path == "/group/list":
+            self.handle_group_list()
+        elif path == "/group/summarize":
+            self.handle_group_summarize()
 
         else:  
             self.send_error(404, "Not Found")  
@@ -243,6 +258,7 @@ class RAGHandler(BaseHTTPRequestHandler):
             query  = body.get("query", "").strip()  
             top_k  = int(body.get("top_k", TOP_K))  
             temp   = float(body.get("temperature", 0.2))
+            group_id = body.get("group_id")  # Optional: for conversation memory
 
             log.info(f"[QUERY] '{query[:80]}' | top_k: {top_k} | temp: {temp}")
 
@@ -258,14 +274,191 @@ class RAGHandler(BaseHTTPRequestHandler):
             hits = retriever.retrieve(query, top_k=top_k)  
             log.info(f"[QUERY] Retrieved {len(hits)} chunks")
 
-            log.info("[QUERY] STEP 2 — Generating answer with GPT-4.1")  
-            answer = generator.generate(query, hits, temperature=temp)  
-            log.info("[QUERY] ✅ Answer generated")
+            log.info("[QUERY] STEP 2 — Generating answer with memory summary")  
+            answer, memory_summary = generator.generate(query, hits, temperature=temp)  
+            log.info("[QUERY] ✅ Answer generated with memory summary")
 
-            self.send_json({"answer": answer, "sources": hits})
+            # Step 3 — Store in conversation memory if group_id provided
+            if group_id:
+                log.info(f"[QUERY] STEP 3 — Storing in conversation group: {group_id}")
+                turn = memory_manager.add_conversation_turn(
+                    group_id=group_id,
+                    query=query,
+                    memory_summary=memory_summary
+                )
+                if turn:
+                    log.info(f"[QUERY] ✅ Turn stored in group {group_id}")
+                    # Check if group should be summarized
+                    if memory_manager.should_summarize_group(group_id):
+                        log.info(f"[QUERY] ⚠️ Group {group_id} has 5+ turns — ready for summarization")
+                else:
+                    log.warning(f"[QUERY] ⚠️ Failed to store turn in group {group_id}")
+
+            self.send_json({
+                "answer": answer, 
+                "memory_summary": memory_summary,
+                "sources": hits,
+                "group_id": group_id,
+            })
 
         except Exception as e:  
             log.error(f"[QUERY] ❌ FATAL — {type(e).__name__}: {e}", exc_info=True)  
+            self.send_json({"error": str(e)}, 500)
+
+    # ──────────────────────────────────  
+    #  CONVERSATION GROUPS  
+    # ──────────────────────────────────  
+    def handle_group_get(self, path):
+        """Handle GET /group/{group_id}"""
+        log.info("[GROUP-GET] ▶ Group get request received")
+        try:
+            group_id = path.split("/")[-1].strip()
+            
+            if not group_id:
+                self.send_json({"error": "No group_id provided"}, 400)
+                return
+            
+            log.info(f"[GROUP-GET] Retrieving group: {group_id}")
+            context = memory_manager.get_group_context(group_id, include_all_turns=False)
+            
+            if not context:
+                self.send_json({"error": f"Group not found: {group_id}"}, 404)
+                return
+            
+            log.info(f"[GROUP-GET] ✅ Retrieved group {group_id}")
+            self.send_json(context)
+            
+        except Exception as e:
+            log.error(f"[GROUP-GET] ❌ FATAL — {type(e).__name__}: {e}", exc_info=True)
+            self.send_json({"error": str(e)}, 500)
+    
+    def handle_group_create(self):
+        """Handle POST /group/create"""
+        log.info("[GROUP-CREATE] ▶ Group create request received")
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(length))
+            topic = body.get("topic", "").strip()
+            
+            if not topic:
+                self.send_json({"error": "Topic is required"}, 400)
+                return
+            
+            log.info(f"[GROUP-CREATE] Creating group with topic: {topic}")
+            group = memory_manager.create_conversation_group(topic)
+            
+            log.info(f"[GROUP-CREATE] ✅ Created group {group.group_id}")
+            self.send_json({
+                "status": "ok",
+                "group_id": group.group_id,
+                "topic": group.topic,
+                "created_at": group.created_at,
+            })
+            
+        except Exception as e:
+            log.error(f"[GROUP-CREATE] ❌ FATAL — {type(e).__name__}: {e}", exc_info=True)
+            self.send_json({"error": str(e)}, 500)
+    
+    def handle_group_list(self):
+        """Handle POST /group/list"""
+        log.info("[GROUP-LIST] ▶ Group list request received")
+        try:
+            groups = memory_manager.list_conversation_groups()
+            
+            log.info(f"[GROUP-LIST] Retrieved {len(groups)} groups")
+            self.send_json({
+                "status": "ok",
+                "total_groups": len(groups),
+                "groups": [
+                    {
+                        "group_id": g.group_id,
+                        "topic": g.topic,
+                        "summary_ready": g.summary_ready,
+                        "recent_turns": len(g.recent_turns),
+                        "total_turns": len(g.all_turns),
+                        "created_at": g.created_at,
+                        "updated_at": g.updated_at,
+                    }
+                    for g in groups
+                ]
+            })
+            
+        except Exception as e:
+            log.error(f"[GROUP-LIST] ❌ FATAL — {type(e).__name__}: {e}", exc_info=True)
+            self.send_json({"error": str(e)}, 500)
+    
+    def handle_group_summarize(self):
+        """Handle POST /group/summarize"""
+        log.info("[GROUP-SUMMARIZE] ▶ Group summarize request received")
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(length))
+            group_id = body.get("group_id", "").strip()
+            
+            if not group_id:
+                self.send_json({"error": "group_id is required"}, 400)
+                return
+            
+            group = memory_manager.get_conversation_group(group_id)
+            if not group:
+                self.send_json({"error": f"Group not found: {group_id}"}, 404)
+                return
+            
+            if not memory_manager.should_summarize_group(group_id):
+                self.send_json({
+                    "status": "not_needed",
+                    "message": f"Group has only {group.unsummarized_turn_count()} turns (needs 5+)",
+                    "unsummarized_turns": group.unsummarized_turn_count(),
+                })
+                return
+            
+            log.info(f"[GROUP-SUMMARIZE] Summarizing group {group_id}")
+            
+            # Generate summary from recent turns
+            recent_queries = "\n".join([
+                f"Q: {t.query}\nA: {t.memory_summary}"
+                for t in group.recent_turns
+            ])
+            
+            summary_prompt = f"""
+            Topic: {group.topic}
+            
+            Recent conversation:
+            {recent_queries}
+            
+            Create a concise summary of the key points discussed (2-3 sentences):
+            """
+            
+            response = generator.client.chat.completions.create(
+                model=CHAT_MODEL,
+                messages=[{"role": "user", "content": summary_prompt}],
+                temperature=0.1,
+            )
+            
+            summary = response.choices[0].message.content.strip()
+            
+            # Generate embedding for the summary
+            log.info(f"[GROUP-SUMMARIZE] Embedding summary for group {group_id}")
+            embeddings = embedder.embed_texts([summary])
+            summary_embedding = embeddings[0] if embeddings else None
+            
+            # Update group
+            memory_manager.update_group_summary(
+                group_id=group_id,
+                summary=summary,
+                summary_embedding=summary_embedding
+            )
+            
+            log.info(f"[GROUP-SUMMARIZE] ✅ Summarized group {group_id}")
+            self.send_json({
+                "status": "ok",
+                "group_id": group_id,
+                "summary": summary,
+                "summarized_turns": len(group.recent_turns),
+            })
+            
+        except Exception as e:
+            log.error(f"[GROUP-SUMMARIZE] ❌ FATAL — {type(e).__name__}: {e}", exc_info=True)
             self.send_json({"error": str(e)}, 500)
 
     # ──────────────────────────────────  
