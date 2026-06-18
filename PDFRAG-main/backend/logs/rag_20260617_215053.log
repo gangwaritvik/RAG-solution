@@ -1,0 +1,154 @@
+2026-06-17 21:50:55 | INFO     | document_loader      | DocumentLoader initialized — upload_dir: C:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\uploads
+2026-06-17 21:50:55 | INFO     | document_loader      | Supported formats: ['.pdf', '.docx']
+2026-06-17 21:50:55 | INFO     | chunker              | Chunker initialized — chunk_size: 1000 | overlap: 300
+2026-06-17 21:50:55 | INFO     | embedder             | Embedder initializing — endpoint: https://az-oai-collection.openai.azure.com/ | model: text-embedding-3-small
+2026-06-17 21:50:56 | INFO     | embedder             | Embedder ✅ initialized | max_workers: 10
+2026-06-17 21:50:56 | INFO     | vector_store         | VectorStore initializing — persist_dir: C:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\chroma_db
+2026-06-17 21:50:56 | INFO     | vector_store         | VectorStore ✅ Collection loaded — 94 existing vectors
+2026-06-17 21:50:56 | INFO     | memory_manager       | [MEMORY_MGR] Initializing conversation memory manager
+2026-06-17 21:50:56 | INFO     | memory_store         | [MEMORY_STORE] Initializing with Chroma DB at C:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\chroma_db
+2026-06-17 21:50:56 | INFO     | memory_store         | [MEMORY_STORE] ✅ Collections loaded — metadata: 50, summaries: 0
+2026-06-17 21:50:56 | INFO     | memory_store         | [MEMORY_STORE] ✅ Retrieved 50 groups
+2026-06-17 21:50:56 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Loaded 50 groups from storage
+2026-06-17 21:50:56 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Manager initialized
+2026-06-17 21:50:56 | INFO     | main                 | [STARTUP] Conversation memory manager initialized
+2026-06-17 21:50:57 | INFO     | context_resolver     | [RESOLVER] ✅ LLM classifier initialized
+2026-06-17 21:50:57 | INFO     | multi_group_processor | [MULTI_GROUP_PROCESSOR] ✅ Initialized with max_workers=5
+2026-06-17 21:50:57 | INFO     | background_summarizer | [BG_SUMMARIZER] Initialized with 3 workers
+2026-06-17 21:50:57 | INFO     | main                 | [STARTUP] Vector store ready — session started
+2026-06-17 21:50:57 | INFO     | main                 | [STARTUP] Conversation memory manager initialized
+2026-06-17 21:50:57 | INFO     | main                 | ==============================================
+2026-06-17 21:50:57 | INFO     | main                 |   📄 RAG Pipeline — Enterprise
+2026-06-17 21:50:57 | INFO     | main                 |   🌐  http://localhost:8000
+2026-06-17 21:50:57 | INFO     | main                 |   🛑  Stop: Ctrl + C
+2026-06-17 21:50:57 | INFO     | main                 | ==============================================
+2026-06-17 21:51:25 | INFO     | main                 | [QUERY] ▶ New query request received
+2026-06-17 21:51:25 | INFO     | main                 | [QUERY] 'summarize the document' | top_k: 5 | temp: 0.2
+2026-06-17 21:51:25 | DEBUG    | timeout              | [TIMEOUT] Windows detected - timeout enforcement disabled
+2026-06-17 21:51:25 | INFO     | main                 | [QUERY] STEP 1 — Resolving query context
+2026-06-17 21:51:25 | INFO     | context_resolver     | [RESOLVER] Processing query: summarize the document
+2026-06-17 21:51:25 | INFO     | context_resolver     | [RESOLVER] ℹ️ No active_group_id provided (None)
+2026-06-17 21:51:25 | INFO     | context_resolver     | [RESOLVER] Using LLM classification
+2026-06-17 21:51:25 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Classifying: summarize the document
+2026-06-17 21:51:30 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Parsed response: independent | summary
+2026-06-17 21:51:30 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Standalone query: Summarize the content of the loaded document.
+2026-06-17 21:51:30 | INFO     | llm_classifier       | [LLM_CLASSIFIER] ✅ Classified as:
+2026-06-17 21:51:30 | INFO     | llm_classifier       |   - dependency_type: independent
+2026-06-17 21:51:30 | INFO     | llm_classifier       |   - retrieval_intent: summary
+2026-06-17 21:51:30 | INFO     | llm_classifier       |   - answer_source: document
+2026-06-17 21:51:30 | INFO     | llm_classifier       |   - standalone_query: Summarize the content of the loaded document.
+2026-06-17 21:51:30 | INFO     | llm_classifier       |   - reasoning: The query is self-contained, directly asks for an overview of the loaded document, and does not depe
+2026-06-17 21:51:30 | INFO     | context_resolver     | [RESOLVER] LLM: independent | summary | belongs=False | answer_source=document
+2026-06-17 21:51:30 | INFO     | context_resolver     | [RESOLVER] Final standalone query: Summarize the content of the loaded document.
+2026-06-17 21:51:30 | INFO     | context_resolver     | [RESOLVER] Will create new group: Document summary
+2026-06-17 21:51:30 | INFO     | embedder             | [EMBED] Embedding 1 texts in 1 batch(es) | workers: 10
+2026-06-17 21:51:30 | DEBUG    | embedder             | [EMBED] Batch 1 — 1 texts (thread started)
+2026-06-17 21:51:30 | INFO     | embedder             | [EMBED] 📤 Batch 1 — Calling Azure OpenAI API for 1 chunks...
+2026-06-17 21:51:31 | INFO     | embedder             | [EMBED] ✅ Batch 1 — 1 texts embedded | dim: 1536 | Total: 1 chunks processed
+2026-06-17 21:51:31 | WARNING  | memory_store         | [MEMORY_STORE] No group summaries indexed yet
+2026-06-17 21:51:31 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Found 0 relevant groups
+2026-06-17 21:51:31 | INFO     | context_resolver     | [RESOLVER] Found 0 groups above threshold 0.3
+2026-06-17 21:51:31 | INFO     | context_resolver     | [RESOLVER] Found 0 relevant groups
+2026-06-17 21:51:31 | INFO     | context_resolver     | [RESOLVER] INDEPENDENT query — creating NEW group (new topic)
+2026-06-17 21:51:31 | INFO     | memory_store         | [MEMORY_STORE] ✅ Created group: group_35e38542
+2026-06-17 21:51:31 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Created group group_35e38542: Document summary
+2026-06-17 21:51:31 | INFO     | context_resolver     | [RESOLVER] ✅ Created new topic group group_35e38542: Document summary
+2026-06-17 21:51:31 | INFO     | context_resolver     | [RESOLVER] ✅ Context resolution complete
+2026-06-17 21:51:31 | INFO     | main                 | [QUERY] Standalone query: Summarize the content of the loaded document.
+2026-06-17 21:51:31 | INFO     | main                 | [QUERY] Intent 'summary' — fetching ALL relevant chunks (not limited by top_k)
+2026-06-17 21:51:31 | INFO     | main                 | [QUERY] STEP 2 — Retrieving relevant chunks
+2026-06-17 21:51:31 | INFO     | main                 | [QUERY] Retrieving with get_all_relevant=True, top_k=5, intent=summary
+2026-06-17 21:51:31 | INFO     | retriever            | [RETRIEVER] Query: 'Summarize the content of the loaded document.' | top_k: 5 | get_all_relevant: True | intent: summary
+2026-06-17 21:51:31 | INFO     | embedder             | [EMBED] Embedding query: 'Summarize the content of the loaded document.'
+2026-06-17 21:51:32 | INFO     | embedder             | [EMBED] ✅ Query embedded — dim: 1536
+2026-06-17 21:51:32 | INFO     | retriever            | [RETRIEVER] Intent 'summary' → mode=comprehensive | top_k=15 | chunk_threshold=0.1
+2026-06-17 21:51:32 | INFO     | vector_store         | [STORE] Searching top-94 — total vectors: 94
+2026-06-17 21:51:32 | INFO     | vector_store         | [STORE] ✅ 94 hits returned | top score: 0.1652
+2026-06-17 21:51:32 | INFO     | retriever            | [RETRIEVER] Total vectors fetched: 94
+2026-06-17 21:51:32 | INFO     | retriever            | [RETRIEVER] Doc score — electricity.pdf: 0.155
+2026-06-17 21:51:32 | INFO     | retriever            | [RETRIEVER] ✅ RELEVANT — electricity.pdf (score: 0.155)
+2026-06-17 21:51:32 | INFO     | retriever            | [RETRIEVER] COMPREHENSIVE — electricity.pdf → 15 chunks (threshold 0.1, cap 15)
+2026-06-17 21:51:32 | INFO     | retriever            | [RETRIEVER] Total returned: 15
+2026-06-17 21:51:32 | INFO     | main                 | [QUERY] Retrieved 15 chunks
+2026-06-17 21:51:32 | INFO     | main                 | [QUERY] First chunk preview: . In different situation current carriers are different. (i) Solids : In solid conductors like metals current carriers are free electrons. (ii) Liquid...
+2026-06-17 21:51:32 | INFO     | main                 | [QUERY] Chunks from 1 source(s): electricity.pdf
+2026-06-17 21:51:32 | INFO     | main                 | [QUERY] STEP 3 — Generating answer with memory context
+2026-06-17 21:51:32 | INFO     | main                 | [QUERY] Using group group_35e38542 — turn_count=0
+2026-06-17 21:51:32 | INFO     | generator            | [GENERATOR] Map-reduce (summary): 15 chunks → 2 parallel batches (size 10)
+2026-06-17 21:51:32 | INFO     | parallel_executor    | [PARALLEL] Executing 2 map-extract tasks in parallel with 2 workers
+2026-06-17 21:51:42 | INFO     | parallel_executor    | [PARALLEL] Completed 1/2 map-extract tasks
+2026-06-17 21:51:45 | INFO     | parallel_executor    | [PARALLEL] Completed 2/2 map-extract tasks
+2026-06-17 21:51:45 | INFO     | parallel_executor    | [PARALLEL] ✅ All 2 map-extract tasks completed
+2026-06-17 21:51:45 | INFO     | generator            | [GENERATOR] Map-reduce: 2/2 batches returned content — reducing
+2026-06-17 21:51:55 | INFO     | generator            | [GENERATOR] ✅ Map-reduce answer generated with memory summary
+2026-06-17 21:51:55 | INFO     | main                 | [QUERY] ✅ Answer generated successfully
+2026-06-17 21:51:55 | INFO     | main                 | [QUERY] STEP 4 — Storing turn in conversation memory
+2026-06-17 21:51:56 | INFO     | memory_store         | [MEMORY_STORE] ✅ Updated group: group_35e38542
+2026-06-17 21:51:56 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Added turn turn_3bab08e5 to group group_35e38542
+2026-06-17 21:51:56 | INFO     | main                 | [QUERY] ✅ Turn saved to group group_35e38542
+2026-06-17 21:51:56 | INFO     | main                 | [QUERY] ✅ Query processing complete
+2026-06-17 21:52:14 | INFO     | main                 | [QUERY] ▶ New query request received
+2026-06-17 21:52:14 | INFO     | main                 | [QUERY] 'give a comprehensive summary of the key topics in the document' | top_k: 5 | temp: 0.2
+2026-06-17 21:52:14 | DEBUG    | timeout              | [TIMEOUT] Windows detected - timeout enforcement disabled
+2026-06-17 21:52:14 | INFO     | main                 | [QUERY] STEP 1 — Resolving query context
+2026-06-17 21:52:14 | INFO     | context_resolver     | [RESOLVER] Processing query: give a comprehensive summary of the key topics in the document
+2026-06-17 21:52:14 | INFO     | context_resolver     | [RESOLVER] ℹ️ No active_group_id provided (None)
+2026-06-17 21:52:14 | INFO     | context_resolver     | [RESOLVER] Using LLM classification
+2026-06-17 21:52:14 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Classifying: give a comprehensive summary of the key topics in the document
+2026-06-17 21:52:16 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Parsed response: independent | summary
+2026-06-17 21:52:16 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Standalone query: Provide a comprehensive summary of the key topics in electricity.pdf.
+2026-06-17 21:52:16 | INFO     | llm_classifier       | [LLM_CLASSIFIER] ✅ Classified as:
+2026-06-17 21:52:16 | INFO     | llm_classifier       |   - dependency_type: independent
+2026-06-17 21:52:16 | INFO     | llm_classifier       |   - retrieval_intent: summary
+2026-06-17 21:52:16 | INFO     | llm_classifier       |   - answer_source: document
+2026-06-17 21:52:16 | INFO     | llm_classifier       |   - standalone_query: Provide a comprehensive summary of the key topics in electricity.pdf.
+2026-06-17 21:52:16 | INFO     | llm_classifier       |   - reasoning: The query is self-contained, clearly asks for a comprehensive summary of the key topics in the loade
+2026-06-17 21:52:16 | INFO     | context_resolver     | [RESOLVER] LLM: independent | summary | belongs=False | answer_source=document
+2026-06-17 21:52:16 | INFO     | context_resolver     | [RESOLVER] Final standalone query: Provide a comprehensive summary of the key topics in electricity.pdf.
+2026-06-17 21:52:16 | INFO     | context_resolver     | [RESOLVER] Will create new group: Key topics summary of electricity.pdf
+2026-06-17 21:52:16 | INFO     | embedder             | [EMBED] Embedding 1 texts in 1 batch(es) | workers: 10
+2026-06-17 21:52:16 | DEBUG    | embedder             | [EMBED] Batch 1 — 1 texts (thread started)
+2026-06-17 21:52:16 | INFO     | embedder             | [EMBED] 📤 Batch 1 — Calling Azure OpenAI API for 1 chunks...
+2026-06-17 21:52:17 | INFO     | embedder             | [EMBED] ✅ Batch 1 — 1 texts embedded | dim: 1536 | Total: 1 chunks processed
+2026-06-17 21:52:17 | WARNING  | memory_store         | [MEMORY_STORE] No group summaries indexed yet
+2026-06-17 21:52:17 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Found 0 relevant groups
+2026-06-17 21:52:17 | INFO     | context_resolver     | [RESOLVER] Found 0 groups above threshold 0.3
+2026-06-17 21:52:17 | INFO     | context_resolver     | [RESOLVER] Found 0 relevant groups
+2026-06-17 21:52:17 | INFO     | context_resolver     | [RESOLVER] INDEPENDENT query — creating NEW group (new topic)
+2026-06-17 21:52:18 | INFO     | memory_store         | [MEMORY_STORE] ✅ Created group: group_65a72ece
+2026-06-17 21:52:18 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Created group group_65a72ece: Key topics summary of electricity.pdf
+2026-06-17 21:52:18 | INFO     | context_resolver     | [RESOLVER] ✅ Created new topic group group_65a72ece: Key topics summary of electricity.pdf
+2026-06-17 21:52:18 | INFO     | context_resolver     | [RESOLVER] ✅ Context resolution complete
+2026-06-17 21:52:18 | INFO     | main                 | [QUERY] Standalone query: Provide a comprehensive summary of the key topics in electricity.pdf.
+2026-06-17 21:52:18 | INFO     | main                 | [QUERY] Intent 'summary' — fetching ALL relevant chunks (not limited by top_k)
+2026-06-17 21:52:18 | INFO     | main                 | [QUERY] STEP 2 — Retrieving relevant chunks
+2026-06-17 21:52:18 | INFO     | main                 | [QUERY] Retrieving with get_all_relevant=True, top_k=5, intent=summary
+2026-06-17 21:52:18 | INFO     | retriever            | [RETRIEVER] Query: 'Provide a comprehensive summary of the key topics in electri' | top_k: 5 | get_all_relevant: True | intent: summary
+2026-06-17 21:52:18 | INFO     | embedder             | [EMBED] Embedding query: 'Provide a comprehensive summary of the key topics in electri...' 
+2026-06-17 21:52:18 | INFO     | embedder             | [EMBED] ✅ Query embedded — dim: 1536
+2026-06-17 21:52:18 | INFO     | retriever            | [RETRIEVER] Intent 'summary' → mode=comprehensive | top_k=15 | chunk_threshold=0.1
+2026-06-17 21:52:18 | INFO     | vector_store         | [STORE] Searching top-94 — total vectors: 94
+2026-06-17 21:52:18 | INFO     | vector_store         | [STORE] ✅ 94 hits returned | top score: 0.4275
+2026-06-17 21:52:18 | INFO     | retriever            | [RETRIEVER] Total vectors fetched: 94
+2026-06-17 21:52:18 | INFO     | retriever            | [RETRIEVER] Doc score — electricity.pdf: 0.408
+2026-06-17 21:52:18 | INFO     | retriever            | [RETRIEVER] ✅ RELEVANT — electricity.pdf (score: 0.408)
+2026-06-17 21:52:18 | INFO     | retriever            | [RETRIEVER] COMPREHENSIVE — electricity.pdf → 15 chunks (threshold 0.1, cap 15)
+2026-06-17 21:52:18 | INFO     | retriever            | [RETRIEVER] Total returned: 15
+2026-06-17 21:52:18 | INFO     | main                 | [QUERY] Retrieved 15 chunks
+2026-06-17 21:52:18 | INFO     | main                 | [QUERY] First chunk preview: . 1 kWh = 1000 Wh = (1000 W) × (60 × 60 s) = 3.6 × 10 6 J. Note that the number of units of electricity consumed = No. of kWh = watt hour 1000  2 2 E...
+2026-06-17 21:52:18 | INFO     | main                 | [QUERY] Chunks from 1 source(s): electricity.pdf
+2026-06-17 21:52:18 | INFO     | main                 | [QUERY] STEP 3 — Generating answer with memory context
+2026-06-17 21:52:18 | INFO     | main                 | [QUERY] Using group group_65a72ece — turn_count=0
+2026-06-17 21:52:18 | INFO     | generator            | [GENERATOR] Map-reduce (summary): 15 chunks → 2 parallel batches (size 10)
+2026-06-17 21:52:18 | INFO     | parallel_executor    | [PARALLEL] Executing 2 map-extract tasks in parallel with 2 workers
+2026-06-17 21:52:24 | INFO     | parallel_executor    | [PARALLEL] Completed 1/2 map-extract tasks
+2026-06-17 21:52:32 | INFO     | parallel_executor    | [PARALLEL] Completed 2/2 map-extract tasks
+2026-06-17 21:52:32 | INFO     | parallel_executor    | [PARALLEL] ✅ All 2 map-extract tasks completed
+2026-06-17 21:52:32 | INFO     | generator            | [GENERATOR] Map-reduce: 2/2 batches returned content — reducing
+2026-06-17 21:52:45 | INFO     | generator            | [GENERATOR] ✅ Map-reduce answer generated with memory summary
+2026-06-17 21:52:45 | INFO     | main                 | [QUERY] ✅ Answer generated successfully
+2026-06-17 21:52:45 | INFO     | main                 | [QUERY] STEP 4 — Storing turn in conversation memory
+2026-06-17 21:52:45 | INFO     | memory_store         | [MEMORY_STORE] ✅ Updated group: group_65a72ece
+2026-06-17 21:52:45 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Added turn turn_61557841 to group group_65a72ece
+2026-06-17 21:52:45 | INFO     | main                 | [QUERY] ✅ Turn saved to group group_65a72ece
+2026-06-17 21:52:45 | INFO     | main                 | [QUERY] ✅ Query processing complete

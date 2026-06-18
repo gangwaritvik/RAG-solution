@@ -1,8 +1,11 @@
 var state = {  
     files: [],  
     queryCount: 0,  
-    totalChunks: 0  
+    totalChunks: 0,
+    activeGroupId: null  // Track active conversation group
 };
+
+const API_BASE_URL = 'http://localhost:8000';
 
 var qsExpanded = true;
 
@@ -34,6 +37,42 @@ function getChunkMode() {
 
 /* ══ TOP-K MAX TOGGLE ══ */  
 var topKMaxActive = false;
+var qsSettingsEnabled = false;  // master switch: when off, backend uses per-intent defaults
+
+// Master enable/disable for Query Settings. When OFF, the Top-K/MAX controls are
+// inert and the query sends NO override (each intent uses its own default cap).
+// When ON, the user's Top-K is sent as an explicit override that wins over defaults.
+function toggleQuerySettingsEnabled(enabled, silent) {
+    qsSettingsEnabled = !!enabled;
+    var slider = document.getElementById('topK');
+    var maxBtn = document.getElementById('btnTopKMax');
+    var note   = document.getElementById('qsDisabledNote');
+    var body   = document.getElementById('qsBody');
+
+    if (body) body.classList.toggle('qs-disabled', !qsSettingsEnabled);
+    if (note) note.style.display = qsSettingsEnabled ? 'none' : 'block';
+
+    // Top-K slider follows the switch, unless MAX is active (MAX manages it itself).
+    if (slider && !topKMaxActive) slider.disabled = !qsSettingsEnabled;
+    if (maxBtn) maxBtn.disabled = !qsSettingsEnabled;
+
+    // Keep the checkbox in sync (e.g. when called programmatically on init).
+    var box = document.getElementById('qsEnable');
+    if (box) box.checked = qsSettingsEnabled;
+
+    if (silent) return;
+
+    if (qsSettingsEnabled) {
+        // Make sure the panel is open so the user can see the controls.
+        if (!qsExpanded) toggleQuerySettings();
+        var v = slider ? slider.value : '5';
+        toast('Manual Top-K enabled — using ' + (topKMaxActive ? 'MAX' : v), 'info');
+    } else {
+        // Leaving manual mode: drop MAX so we return cleanly to intent defaults.
+        if (topKMaxActive) toggleTopKMax();
+        toast('Manual settings off — using automatic per-intent defaults', 'info');
+    }
+}
 
 function toggleTopKMax() {  
     topKMaxActive = !topKMaxActive;  
@@ -48,7 +87,7 @@ function toggleTopKMax() {
         toast('Top-K set to MAX — all chunks will be retrieved', 'info');  
     } else {  
         if (btn)     btn.classList.remove('active');  
-        if (slider)  slider.disabled = false;  
+        if (slider)  slider.disabled = !qsSettingsEnabled;  
         var val = slider ? slider.value : '5';  
         if (display) display.textContent = val;  
         toast('Top-K restored to ' + val, 'info');  
@@ -63,6 +102,21 @@ function updateTopK(val) {
 function updateTemp(val) {  
     var display = document.getElementById('tempDisplay');  
     if (display) display.textContent = parseFloat(val).toFixed(1);  
+}
+
+// Explicit Top-K override to send to the backend, or null when manual settings are
+// disabled (so the backend falls back to each intent's default cap). When MAX is
+// active we send no number — the retrieve_all flag handles "all chunks" instead.
+function getTopKOverride() {
+    if (!qsSettingsEnabled) return null;
+    if (topKMaxActive) return null;
+    var el = document.getElementById('topK');
+    return parseInt(el ? el.value : '5') || 5;
+}
+
+// True when the user wants EVERY chunk (MAX toggle, manual settings on).
+function getRetrieveAll() {
+    return qsSettingsEnabled && topKMaxActive;
 }
 
 function getTopK() {  
@@ -120,6 +174,9 @@ document.addEventListener('DOMContentLoaded', function() {
         addFiles(Array.from(input.files));  
         input.value = '';  
     });  
+
+    // Start with manual settings OFF → automatic per-intent defaults.
+    toggleQuerySettingsEnabled(false, true);
 });
 
 function isSupported(f) {  
@@ -285,6 +342,81 @@ document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') closeChunkModal();  
 });
 
+/* ══ POLLING FOR FILE COMPLETION ══ */
+function pollForFileCompletion(fileObj) {
+    var pollCount = 0;
+    var maxPolls = 120; // 2 minutes max (120 * 1 second)
+    
+    var pollInterval = setInterval(async function() {
+        pollCount = pollCount + 1;
+        
+        try {
+            // Query backend for status - use a simple OPTIONS request or status endpoint
+            var statusRes = await fetch(API_BASE_URL + '/status', { method: 'GET' });
+            
+            if (!statusRes.ok) {
+                clearInterval(pollInterval);
+                return;
+            }
+            
+            var statusData = await statusRes.json();
+            
+            // Check ingestion_status first (works even if file has 0 chunks)
+            var fileIngestionStatus = statusData.ingestion_status && statusData.ingestion_status[fileObj.name];
+            
+            if (fileIngestionStatus && fileIngestionStatus.status === 'completed') {
+                fileObj.status = 'done';
+                
+                // Update chunk count from ingestion status
+                fileObj.chunks = []; // Reset chunks array
+                state.totalChunks = statusData.total_vectors || 0;
+                
+                // POPULATE CHUNKS FOR THIS FILE FROM STATUS RESPONSE
+                if (statusData.files && Array.isArray(statusData.files)) {
+                    for (var fi = 0; fi < statusData.files.length; fi = fi + 1) {
+                        var fileStatus = statusData.files[fi];
+                        // Find matching file in state.files
+                        for (var sfi = 0; sfi < state.files.length; sfi = sfi + 1) {
+                            if (state.files[sfi].name === fileStatus.filename) {
+                                state.files[sfi].chunks = fileStatus.chunks || [];
+                                // Preserve the mode recorded at upload time; only fall
+                                // back to the polled file's mode if it's missing.
+                                if (!state.files[sfi].chunkMode) {
+                                    state.files[sfi].chunkMode = fileObj.chunkMode;
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                // Show appropriate message based on chunk count
+                if (fileIngestionStatus.chunks === 0) {
+                    toast('⚠️ ' + fileObj.name + ' — completed but no content extracted (file may be image-only, encrypted, or invalid)', 'warning');
+                } else {
+                    toast('✅ ' + fileObj.name + ' — completed (' + fileIngestionStatus.chunks + ' chunks)', 'success');
+                }
+                renderFiles();
+                clearInterval(pollInterval);
+                return;
+            }
+            
+            // Stop after max polls
+            if (pollCount >= maxPolls) {
+                fileObj.status = 'done'; // Assume done after timeout
+                toast('⏱ ' + fileObj.name + ' — processing timeout (marked as done)', 'warning');
+                renderFiles();
+                clearInterval(pollInterval);
+            }
+        } catch (e) {
+            // Network error - continue polling
+            if (pollCount >= maxPolls) {
+                clearInterval(pollInterval);
+            }
+        }
+    }, 1000); // Poll every 1 second
+}
+
 /* ══ INGEST ══ */  
 async function ingestFiles() {  
     var pending = [];  
@@ -310,8 +442,20 @@ async function ingestFiles() {
         form.append('chunk_mode', chunkMode);
 
         try {  
-            var res  = await fetch('/ingest', { method: 'POST', body: form });  
+            var res  = await fetch(API_BASE_URL + '/ingest', { method: 'POST', body: form });  
             var data = await res.json();  
+            
+            // Handle 202 Accepted - processing in background
+            if (res.status === 202) {
+                f.status = 'processing';
+                f.chunkMode = chunkMode;  // remember the mode used so the badge shows after polling
+                toast('⏳ ' + f.name + ' — processing in background', 'info');
+                renderFiles();
+                // Start polling for completion
+                pollForFileCompletion(f);
+                continue;
+            }
+            
             if (data.error) throw new Error(data.error);
 
             var doc = data.documents && data.documents[0];  
@@ -384,7 +528,7 @@ async function rechunkFile(id, filename, event) {
 
 async function doRechunk(file, filename, newMode) {  
     try {  
-        var delRes  = await fetch('/delete', {  
+        var delRes  = await fetch(API_BASE_URL + '/delete', {  
             method:  'POST',  
             headers: { 'Content-Type': 'application/json' },  
             body:    JSON.stringify({ filename: filename })  
@@ -403,8 +547,22 @@ async function doRechunk(file, filename, newMode) {
         form.append('files',      file.file, file.name);  
         form.append('chunk_mode', newMode);
 
-        var res  = await fetch('/ingest', { method: 'POST', body: form });  
+        var res  = await fetch(API_BASE_URL + '/ingest', { method: 'POST', body: form });  
         var data = await res.json();  
+
+        // Handle 202 Accepted — ingest now processes in the background.
+        // The response no longer contains `documents`, so treat 202 as success
+        // (file is being re-chunked) and poll /status until it completes.
+        if (res.status === 202) {  
+            file.status    = 'processing';  
+            file.chunkMode = newMode;  
+            toast('⏳ Re-chunking "' + filename + '" in background', 'info');  
+            renderFiles();  
+            animateProgress(file.id);  
+            pollForFileCompletion(file);  
+            return;  
+        }  
+
         if (data.error) throw new Error(data.error);
 
         var doc = data.documents && data.documents[0];  
@@ -458,13 +616,16 @@ async function submitQuery() {
     var t0       = Date.now();
 
     try {  
-        var res  = await fetch('/query', {  
+        var res  = await fetch(API_BASE_URL + '/query', {  
             method:  'POST',  
             headers: { 'Content-Type': 'application/json' },  
             body:    JSON.stringify({  
-                query:       query,  
-                top_k:       getTopK(),  
-                temperature: getTemp()  
+                query:          query,  
+                top_k:          getTopK(),  
+                temperature:    getTemp(),
+                top_k_override: getTopKOverride(),  // null unless manual settings are enabled
+                retrieve_all:   getRetrieveAll(),   // true when MAX toggle is on → every chunk
+                group_id:       state.activeGroupId  // Send active group with query
             })  
         });  
         var data = await res.json();  
@@ -473,6 +634,11 @@ async function submitQuery() {
         var elapsed = ((Date.now() - t0) / 1000).toFixed(2) + 's';  
         state.queryCount = state.queryCount + 1;  
         setText('sQueries', state.queryCount);
+        
+        // Store the active group for next query
+        if (data.group_id) {
+            state.activeGroupId = data.group_id;
+        }
 
         removeTyping(typingId);  
         var answerText = (data.answer && typeof data.answer === 'string')  
@@ -574,7 +740,7 @@ async function deleteFile(id, filename, event) {
     event.stopPropagation();  
     if (!confirm('Delete "' + filename + '" from vector store?')) return;  
     try {  
-        var res  = await fetch('/delete', {  
+        var res  = await fetch(API_BASE_URL + '/delete', {  
             method:  'POST',  
             headers: { 'Content-Type': 'application/json' },  
             body:    JSON.stringify({ filename: filename })  
@@ -611,7 +777,7 @@ async function deleteFile(id, filename, event) {
 async function clearAll() {  
     if (!confirm('Delete ALL documents from the vector store? This cannot be undone.')) return;  
     try {  
-        await fetch('/clear', { method: 'POST', headers: { 'Content-Type': 'application/json' } });  
+        await fetch(API_BASE_URL + '/clear', { method: 'POST', headers: { 'Content-Type': 'application/json' } });  
         state.files       = [];  
         state.totalChunks = 0;  
         renderFiles();  
@@ -624,8 +790,18 @@ async function clearAll() {
 }
 
 /* ══ UTILITIES ══ */  
+// Remove non-printable PDF-extraction artifacts (control chars like \x01, \x02,
+// \x04, \x1f and the Unicode replacement char) that render as █ boxes in the UI.
+function cleanText(str) {
+    return String(str)
+        // strip C0 controls except tab(\x09)/newline(\x0A)/carriage-return(\x0D)
+        .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+        // strip the Unicode replacement character and the box-drawing fallback glyph
+        .replace(/[\uFFFD\u25A0\u2588]/g, '');
+}
+
 function esc(str) {  
-    return String(str)  
+    return cleanText(str)  
         .replace(/&/g,  '&amp;')  
         .replace(/</g,  '&lt;')  
         .replace(/>/g,  '&gt;')  
@@ -633,7 +809,22 @@ function esc(str) {
 }
 
 function fmtAnswer(text) {  
-    var out = (text !== null && text !== undefined) ? String(text) : '';
+    var out = (text !== null && text !== undefined) ? cleanText(text) : '';
+
+    // Protect LaTeX math spans from the markdown transforms below. We pull them out
+    // into placeholders, format everything else, then restore them verbatim so MathJax
+    // receives clean delimiters. Without this, the '\n -> <br/>' step shatters multi-line
+    // \[ ... \] blocks and the bold/italic regexes eat characters inside \( ... \),
+    // making formulas render blank. Display delimiters are extracted before inline ones.
+    var mathStore = [];
+    function stashMath(m) {
+        mathStore.push(m);
+        return '@@MATH' + (mathStore.length - 1) + '@@';
+    }
+    out = out.replace(/\$\$[\s\S]+?\$\$/g, stashMath);   // $$ ... $$  (display)
+    out = out.replace(/\\\[[\s\S]+?\\\]/g, stashMath);   // \[ ... \]  (display)
+    out = out.replace(/\\\([\s\S]+?\\\)/g, stashMath);   // \( ... \)  (inline)
+    out = out.replace(/\$[^$\n]+?\$/g,     stashMath);   // $ ... $    (inline)
 
     out = out.replace(/^### (.+)$/gm, '<h4 class="ans-h4">$1</h4>');  
     out = out.replace(/^## (.+)$/gm,  '<h3 class="ans-h3">$1</h3>');  
@@ -695,13 +886,17 @@ function fmtAnswer(text) {
 
     out = result.join('\n');
 
-    out = out.replace(/^[\-\*] (.+)$/gm, '<li class="ans-li">$1</li>');  
+    out = out.replace(/^[ \t]*[\-\*] (.+)$/gm, '<li class="ans-li">$1</li>');  
     out = out.replace(/(<li class="ans-li">[\s\S]*?<\/li>)/g, '<ul class="ans-ul">$1</ul>');  
     out = out.replace(/<\/ul>\s*<ul class="ans-ul">/g, '');  
     out = out.replace(/^\d+\. (.+)$/gm,    '<li class="ans-li">$1</li>');  
     out = out.replace(/`([^`]+)`/g,        '<code class="ans-code">$1</code>');  
     out = out.replace(/(\(Page[^)]+\))/g,  '<span class="ans-cite">$1</span>');  
     out = out.replace(/\n(?!<(h[2-4]|ul|li|hr|div|table))/g, '<br/>');
+
+    // Restore protected LaTeX spans verbatim (after <br/> insertion so display-math
+    // newlines stay intact for MathJax).
+    out = out.replace(/@@MATH(\d+)@@/g, function (_, n) { return mathStore[Number(n)]; });
 
     return out;  
 }

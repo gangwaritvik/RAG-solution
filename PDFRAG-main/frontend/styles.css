@@ -1958,7 +1958,6 @@ ANSWER FORMATTING
 
 
 .qs-toggle-arrow{    
-    margin-left: auto;  
     font-size: 10px;  
     color: rgba(0,255,170,0.4);  
     transition: color 0.2s ease;  
@@ -1967,4 +1966,67 @@ ANSWER FORMATTING
 .qs-header:hover .qs-toggle-arrow {    
     color: rgba(0,255,170,0.8);  
    
+}
+
+/* ── Query Settings master enable switch ── */
+.qs-switch {
+    margin-left: auto;          /* push switch (and the arrow after it) to the right */
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.qs-switch input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.qs-switch-track {
+    position: relative;
+    display: inline-block;
+    width: 30px;
+    height: 16px;
+    border-radius: 99px;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.15);
+    transition: all 0.22s ease;
+}
+
+.qs-switch-thumb {
+    position: absolute;
+    top: 1px;
+    left: 1px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.6);
+    transition: all 0.22s ease;
+}
+
+.qs-switch input:checked + .qs-switch-track {
+    background: rgba(0,255,170,0.35);
+    border-color: rgba(0,255,170,0.5);
+    box-shadow: 0 0 10px rgba(0,255,170,0.25);
+}
+
+.qs-switch input:checked + .qs-switch-track .qs-switch-thumb {
+    left: 15px;
+    background: rgba(0,255,170,1);
+    box-shadow: 0 0 8px rgba(0,255,170,0.5);
+}
+
+/* Dim the controls when manual settings are disabled */
+.qs-body.qs-disabled .qs-item {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.qs-disabled-note {
+    font-size: 8px;
+    color: rgba(0,255,170,0.4);
+    line-height: 1.5;
+    margin-bottom: 8px;
+    letter-spacing: 0.3px;
 }

@@ -5,6 +5,7 @@ from typing import List, Dict, Any
 from backend.ingestion.loaders.pdf_loader import PDFLoader  
 from backend.ingestion.loaders.docx_loader import DOCXLoader  
 from backend.utils.logger import get_logger
+from backend.config import PDF_EXTRACT_TABLES
 
 log = get_logger("document_loader")
 
@@ -59,12 +60,22 @@ class DocumentLoader:
 
             log.info(f"[LOAD] Using {loader_class.__name__} for {filename}")
 
-            documents = loader_class.load(  
-                file_path=file_path,  
-                filename=filename,  
-                doc_id=doc_id,  
-                clean_fn=self._clean,  
-            )
+            # Pass extract_tables flag for PDF files
+            if loader_class == PDFLoader:
+                documents = loader_class.load(  
+                    file_path=file_path,  
+                    filename=filename,  
+                    doc_id=doc_id,  
+                    clean_fn=self._clean,  
+                    extract_tables=PDF_EXTRACT_TABLES,
+                )
+            else:
+                documents = loader_class.load(  
+                    file_path=file_path,  
+                    filename=filename,  
+                    doc_id=doc_id,  
+                    clean_fn=self._clean,  
+                )
 
             results.append({  
                 "doc_id": doc_id,  

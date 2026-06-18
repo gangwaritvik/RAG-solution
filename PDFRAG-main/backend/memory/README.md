@@ -1,131 +1,152 @@
-# Group-Based Conversational Memory Architecture
+# Backend Memory Module - Refactored Architecture
 
 ## Overview
 
-This module implements the core infrastructure for **Intent-Driven Group-Based Conversational Memory** as described in the architecture specification. It provides:
+This module implements **Intent-Driven Group-Based Conversational Memory** with clean separation of concerns through four organized layers:
 
 - **Group Memory**: Organizes conversations into semantic topics instead of linear chat history
 - **Persistent Storage**: Uses Chroma DB to store and retrieve conversation groups
 - **Scalable Context**: Maintains constant prompt size regardless of conversation length
 - **Semantic Search**: Find relevant groups by embedding similarity
 
+## Refactored Directory Structure
+
+```
+backend/memory/                       ⭐ Organized into layers
+├── __init__.py                      # Central export hub
+├── README.md                        # This file
+│
+├── storage/                         # ⭐ Layer 1: Data structures & persistence
+│   ├── __init__.py
+│   ├── group_memory.py             # In-memory groups (ConversationTurn, Group, GroupMemory)
+│   └── memory_store.py             # Chroma DB persistence (MemoryStore)
+│
+├── management/                      # ⭐ Layer 2: High-level orchestration
+│   ├── __init__.py
+│   └── conversation_manager.py     # Coordinates storage operations (ConversationMemoryManager)
+│
+├── resolution/                      # ⭐ Layer 3: Query context resolution
+│   ├── __init__.py
+│   └── context_resolver.py         # Classification & context (ContextResolver, QueryContext, Enums)
+│
+└── classifiers/                     # ⭐ Layer 4: LLM classification
+    ├── __init__.py
+    └── llm_classifier.py           # Query classification (LLMClassifier)
+```
+
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│         ConversationMemoryManager                       │
-│  (High-level API for memory operations)                │
-└──────────────┬──────────────────────────────────────────┘
-               │
-      ┌────────┴────────┐
-      │                 │
-┌─────▼────────┐  ┌────▼──────────────┐
-│ GroupMemory  │  │ MemoryStore       │
-│ (in-memory)  │  │ (Chroma DB backed)│
-└──────────────┘  └───────────────────┘
-      │                 │
-      └────────┬────────┘
-               │
-        ┌──────▼─────────┐
-        │  Chroma DB     │
-        │ (Persistent)   │
-        └────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│  MAIN.PY - HTTP Request Handler                                │
+└────────────────┬────────────────────────────────┬───────────────┘
+                 │                                │
+         ┌───────▼────────────┐       ┌──────────▼────────────┐
+         │ ContextResolver    │       │ ConversationManager   │
+         │ (resolution/)      │       │ (management/)         │
+         └───────┬────────────┘       └──────────┬────────────┘
+                 │                               │
+         ┌───────▼────────────┐       ┌──────────▼────────────┐
+         │ LLMClassifier      │       │ GroupMemory           │
+         │ (classifiers/)     │       │ MemoryStore           │
+         │                    │       │ (storage/)            │
+         └────────────────────┘       └──────────┬────────────┘
+                                                  │
+                                         ┌────────▼─────────┐
+                                         │  Chroma DB       │
+                                         │  (Persistent)    │
+                                         └──────────────────┘
 ```
+
+## Layer Breakdown
+
+| Layer | Purpose | Location | Key Classes |
+|-------|---------|----------|-------------|
+| **Storage** | Data structures & persistence | `storage/` | `Group`, `ConversationTurn`, `GroupMemory`, `MemoryStore` |
+| **Management** | High-level orchestration | `management/` | `ConversationMemoryManager` |
+| **Resolution** | Query context & classification | `resolution/` | `ContextResolver`, `QueryContext`, `DependencyType`, `RetrievalIntent` |
+| **Classifiers** | LLM intelligence | `classifiers/` | `LLMClassifier` |
 
 ## Core Components
 
-### 1. **Group Memory** (`group_memory.py`)
+### Layer 1: Storage (`storage/`)
 
-Data structures for managing conversation state:
+**Purpose**: Data structures and persistent storage
 
-- **`ConversationTurn`**: Single query-response pair
-  ```python
-  turn = ConversationTurn(
-      turn_id="turn_abc123",
-      query="What is the EMD amount?",
-      memory_summary="EMD = 2% of contract value"
-  )
-  ```
+#### `group_memory.py` - In-Memory Structures
+- **Classes**: 
+  - `ConversationTurn`: Single Q&A pair with metadata
+  - `Group`: Semantic conversation group with turns
+  - `GroupMemory`: Fast in-memory group manager
+- **Responsibilities**:
+  - Define group and turn structures
+  - CRUD operations on groups
+  - Track active group
+  - No external dependencies
 
-- **`Group`**: Semantic topic with conversation history
-  ```python
-  group = Group(
-      group_id="group_xyz",
-      topic="EMD Requirements",
-      summary="...",
-      recent_turns=[...],
-      all_turns=[...],
-      summary_ready=True
-  )
-  ```
+#### `memory_store.py` - Chroma DB Persistence
+- **Classes**: `MemoryStore`
+- **Responsibilities**:
+  - Persist groups to Chroma DB
+  - Load groups from storage
+  - Search by embedding similarity
+  - Delete and clear operations
+- **Collections**:
+  - `conversation_memory`: Full group metadata (JSON)
+  - `group_summaries`: Summary embeddings (semantic search)
 
-- **`GroupMemory`**: In-memory manager for fast access
-  ```python
-  gm = GroupMemory()
-  g = gm.create_group("g1", "Eligibility")
-  gm.add_turn_to_group("g1", turn)
-  ```
+### Layer 2: Management (`management/`)
 
-### 2. **Memory Store** (`memory_store.py`)
+**Purpose**: High-level orchestration
 
-Chroma DB backed persistent storage:
+#### `conversation_manager.py` - Memory Manager
+- **Classes**: `ConversationMemoryManager`
+- **Responsibilities**:
+  - Coordinate in-memory `GroupMemory` with persistent `MemoryStore`
+  - Create/retrieve/list/delete groups
+  - Add conversation turns
+  - Update summaries with embeddings
+  - Search groups by embedding
+  - Load groups on startup
+- **Main Entry Point**: Use this for all memory operations
 
-```python
-store = MemoryStore(chroma_db_path="./storage/chroma_db")
+### Layer 3: Resolution (`resolution/`)
 
-# Save/update group
-store.save_group(group)
+**Purpose**: Query context and classification
 
-# Retrieve group
-retrieved_group = store.get_group("group_xyz")
+#### `context_resolver.py` - Query Processing
+- **Classes**:
+  - `DependencyType` (enum): INDEPENDENT, DEPENDENT, MULTI_GROUP, AMBIGUOUS
+  - `RetrievalIntent` (enum): FACTUAL, SUMMARY, COMPARISON, EXTRACTION, ANALYSIS
+  - `QueryContext` (dataclass): Complete processed query
+  - `ContextResolver`: Main resolver
+- **Responsibilities**:
+  - Call LLM classifier
+  - Determine dependency and intent
+  - Generate standalone (retrieval-ready) queries
+  - Find relevant groups by similarity
+  - Load memory context
+  - Handle multi-group queries
+- **Used By**: `main.py` before retrieval/generation
 
-# Search by embedding
-results = store.search_groups_by_embedding(query_embedding, top_k=5)
+### Layer 4: Classifiers (`classifiers/`)
 
-# List all groups
-all_groups = store.list_groups()
-```
+**Purpose**: LLM-based intelligent classification
 
-**Collections Used:**
-- `conversation_memory`: Stores full group metadata (JSON)
-- `group_summaries`: Stores summary embeddings for semantic search
+#### `llm_classifier.py` - LLM Classifier
+- **Classes**: `LLMClassifier`
+- **Responsibilities**:
+  - Classify query via LLM prompt
+  - Determine dependency type and intent
+  - Generate standalone queries
+  - Split multi-group queries into sub-queries
+  - Generate topics for sub-queries in parallel
+- **Features**:
+  - Parallel topic generation (ThreadPoolExecutor)
+  - Temperature 0.1 for consistency
+  - Robust error handling
 
-### 3. **Conversation Manager** (`conversation_manager.py`)
-
-High-level API coordinating in-memory and persistent storage:
-
-```python
-manager = ConversationMemoryManager(chroma_db_path="./storage/chroma_db")
-
-# Create group
-group = manager.create_conversation_group("Eligibility Requirements")
-
-# Add turn
-turn = manager.add_conversation_turn(
-    group_id=group.group_id,
-    query="What is the minimum turnover?",
-    memory_summary="Minimum ₹50 Cr annual turnover"
-)
-
-# Update summary
-manager.update_group_summary(
-    group_id=group.group_id,
-    summary="...",
-    summary_embedding=embedding_vector
-)
-
-# Search groups
-results = manager.search_groups_by_embedding(
-    query_embedding=vector,
-    similarity_threshold=0.5,
-    top_k=5
-)
-
-# Get group context for LLM
-context = manager.get_group_context(group_id)
-```
-
-## Key Features
+## Import Structure
 
 ### 1. **Topic-Based Organization**
 

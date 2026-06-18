@@ -23,6 +23,7 @@ class VectorStore:
 
             self.collection.delete(ids=ids_to_delete)  
             log.info(f"[STORE] ✅ Deleted {len(ids_to_delete)} vectors for: {filename}")  
+            self._filenames.discard(filename)  # keep filename cache in sync
             return len(ids_to_delete)
 
         except Exception as e:  
@@ -37,10 +38,31 @@ class VectorStore:
                 name="pdf_rag",  
                 metadata={"hnsw:space": "cosine"},  
             )  
+            # Cache of distinct filenames currently stored, kept in sync on
+            # add/delete/clear so per-query lookups don't rescan all chunk text.
+            self._filenames = set()
+            self._refresh_filename_cache()
             log.info(f"VectorStore ✅ Collection loaded — {self.collection.count()} existing vectors")  
         except Exception as e:  
             log.error(f"VectorStore ❌ Failed to initialize — {type(e).__name__}: {e}", exc_info=True)  
             raise
+
+    def _refresh_filename_cache(self):
+        """Rebuild the cached set of distinct filenames from stored metadata."""
+        try:
+            data = self.collection.get(include=["metadatas"])
+            self._filenames = {
+                str(m.get("filename", "")).strip()
+                for m in data.get("metadatas", [])
+                if m.get("filename")
+            }
+        except Exception as e:
+            log.error(f"[STORE] Failed to refresh filename cache — {type(e).__name__}: {e}")
+            self._filenames = set()
+
+    def list_filenames(self) -> List[str]:
+        """Return the sorted list of distinct filenames currently in the store."""
+        return sorted(f for f in self._filenames if f)
 
     def add(self, embeddings: List[List[float]], metadata: List[Dict[str, Any]]):  
         log.info(f"[STORE] Adding {len(embeddings)} vectors")  
@@ -63,6 +85,9 @@ class VectorStore:
                 documents=documents,  
                 metadatas=clean_meta,  
             )  
+            for m in clean_meta:  # keep filename cache in sync
+                if m["filename"]:
+                    self._filenames.add(m["filename"])
             log.info(f"[STORE] ✅ {len(embeddings)} vectors added — total now: {self.collection.count()}")  
         except Exception as e:  
             log.error(f"[STORE] ❌ Add FAILED — {type(e).__name__}: {e}", exc_info=True)  
@@ -97,6 +122,7 @@ class VectorStore:
             name="pdf_rag",  
             metadata={"hnsw:space": "cosine"},  
         )  
+        self._filenames = set()  # reset filename cache
         log.info("[STORE] Collection cleared.")
 
     @property  

@@ -1,22 +1,40 @@
-"""Conversational memory module for group-based memory architecture."""
+"""Memory module - Group-based conversational memory system."""
 
-from .memory_store import MemoryStore
-from .group_memory import GroupMemory, ConversationTurn, Group
-from .conversation_manager import ConversationMemoryManager
-from .dependency_classifier import DependencyClassifier, DependencyType
-from .intent_classifier import IntentClassifier, RetrievalIntent
-from .context_resolver import ContextResolver, QueryContext
+# Storage layer
+from backend.memory.storage import (
+    Group,
+    ConversationTurn,
+    GroupMemory,
+    MemoryStore
+)
+
+# Management layer
+from backend.memory.management import ConversationMemoryManager
+
+# Resolution layer
+from backend.memory.resolution import (
+    ContextResolver,
+    QueryContext,
+    DependencyType,
+    RetrievalIntent
+)
+
+# Classification layer
+from backend.memory.classifiers import LLMClassifier
 
 __all__ = [
-    "MemoryStore", 
-    "GroupMemory", 
-    "ConversationTurn", 
+    # Storage
     "Group",
+    "ConversationTurn",
+    "GroupMemory",
+    "MemoryStore",
+    # Management
     "ConversationMemoryManager",
-    "DependencyClassifier",
-    "DependencyType",
-    "IntentClassifier",
-    "RetrievalIntent",
+    # Resolution
     "ContextResolver",
     "QueryContext",
+    "DependencyType",
+    "RetrievalIntent",
+    # Classification
+    "LLMClassifier",
 ]

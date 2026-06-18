@@ -16,7 +16,7 @@ class Embedder:
             azure_endpoint=AZURE_ENDPOINT,  
             api_key=AZURE_API_KEY,  
             api_version=AZURE_API_VERSION,  
-            timeout=httpx.Timeout(30.0, connect=10.0),  
+            timeout=httpx.Timeout(300.0, connect=10.0),  
             max_retries=2,  
         )  
         self.model = EMBEDDING_MODEL  
@@ -29,6 +29,7 @@ class Embedder:
         log.debug(f"[EMBED] Batch {batch_num} — {len(batch)} texts (thread started)")
 
         try:  
+            log.info(f"[EMBED] 📤 Batch {batch_num} — Calling Azure OpenAI API for {len(batch)} chunks...")
             response = self.client.embeddings.create(  
                 input=batch,  
                 model=self.model,  
@@ -36,7 +37,7 @@ class Embedder:
             embeddings = [item.embedding for item in response.data]  
             dim = len(embeddings[0]) if embeddings else 0
 
-            log.info(f"[EMBED] ✅ Batch {batch_num} — {len(batch)} texts embedded | dim: {dim}")
+            log.info(f"[EMBED] ✅ Batch {batch_num} — {len(batch)} texts embedded | dim: {dim} | Total: {batch_num * len(batch)} chunks processed")
 
             return {  
                 "batch_num": batch_num,  
@@ -52,7 +53,7 @@ class Embedder:
                 "error": e,  
             }
 
-    def embed_texts(self, texts: List[str], batch_size: int = 100) -> List[List[float]]:  
+    def embed_texts(self, texts: List[str], batch_size: int = 500) -> List[List[float]]:  
         batch_size = int(batch_size)
 
         if not texts:  

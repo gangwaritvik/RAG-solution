@@ -1,0 +1,26 @@
+2026-06-17 14:52:00 | INFO     | document_loader      | DocumentLoader initialized — upload_dir: C:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\uploads
+2026-06-17 14:52:00 | INFO     | document_loader      | Supported formats: ['.pdf', '.docx']
+2026-06-17 14:52:00 | INFO     | chunker              | Chunker initialized — chunk_size: 300 | overlap: 50
+2026-06-17 14:52:00 | INFO     | embedder             | Embedder initializing — endpoint: https://az-oai-collection.openai.azure.com/ | model: text-embedding-3-small
+2026-06-17 14:52:01 | INFO     | embedder             | Embedder ✅ initialized | max_workers: 10
+2026-06-17 14:52:01 | INFO     | vector_store         | VectorStore initializing — persist_dir: C:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\chroma_db
+2026-06-17 14:52:01 | DEBUG    | chromadb.config      | Starting component System
+2026-06-17 14:52:01 | DEBUG    | chromadb.config      | Starting component Posthog
+2026-06-17 14:52:01 | INFO     | vector_store         | VectorStore ✅ Collection loaded — 295 existing vectors
+2026-06-17 14:52:01 | INFO     | memory_manager       | [MEMORY_MGR] Initializing conversation memory manager
+2026-06-17 14:52:01 | INFO     | memory_store         | [MEMORY_STORE] Initializing with Chroma DB at C:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\chroma_db
+2026-06-17 14:52:01 | INFO     | memory_store         | [MEMORY_STORE] ✅ Collections loaded — metadata: 2, summaries: 0
+2026-06-17 14:52:01 | INFO     | memory_store         | [MEMORY_STORE] ✅ Retrieved 2 groups
+2026-06-17 14:52:01 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Loaded 2 groups from storage
+2026-06-17 14:52:01 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Manager initialized
+2026-06-17 14:52:01 | INFO     | main                 | [STARTUP] Conversation memory manager initialized
+2026-06-17 14:52:02 | INFO     | context_resolver     | [RESOLVER] ✅ LLM classifier initialized
+2026-06-17 14:52:02 | INFO     | multi_group_processor | [MULTI_GROUP_PROCESSOR] ✅ Initialized with max_workers=5
+2026-06-17 14:52:02 | INFO     | background_summarizer | [BG_SUMMARIZER] Initialized with 3 workers
+2026-06-17 14:52:02 | INFO     | main                 | [STARTUP] Vector store ready — session started
+2026-06-17 14:52:02 | INFO     | main                 | [STARTUP] Conversation memory manager initialized
+2026-06-17 14:52:02 | INFO     | main                 | ==============================================
+2026-06-17 14:52:02 | INFO     | main                 |   📄 RAG Pipeline — Enterprise
+2026-06-17 14:52:02 | INFO     | main                 |   🌐  http://localhost:8000
+2026-06-17 14:52:02 | INFO     | main                 |   🛑  Stop: Ctrl + C
+2026-06-17 14:52:02 | INFO     | main                 | ==============================================
