@@ -1,0 +1,60 @@
+2026-06-18 13:07:02 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Classifying: summarize the document
+2026-06-18 13:07:06 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Parsed response: independent | summary
+2026-06-18 13:07:06 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Standalone query: Summarize the content of the document.
+2026-06-18 13:07:06 | INFO     | llm_classifier       | [LLM_CLASSIFIER] ✅ Classified as:
+2026-06-18 13:07:06 | INFO     | llm_classifier       |   - dependency_type: independent
+2026-06-18 13:07:06 | INFO     | llm_classifier       |   - retrieval_intent: summary
+2026-06-18 13:07:06 | INFO     | llm_classifier       |   - answer_source: document
+2026-06-18 13:07:06 | INFO     | llm_classifier       |   - retrieval_scope: whole_document
+2026-06-18 13:07:06 | INFO     | llm_classifier       |   - standalone_query: Summarize the content of the document.
+2026-06-18 13:07:06 | INFO     | llm_classifier       |   - reasoning: The query is a self-contained request for an overview of the entire loaded document, with no ambigui
+2026-06-18 13:07:06 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Classifying: summarize the whole pdf
+2026-06-18 13:07:09 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Parsed response: independent | summary
+2026-06-18 13:07:09 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Standalone query: Summarize the entire electricity.pdf document.
+2026-06-18 13:07:09 | INFO     | llm_classifier       | [LLM_CLASSIFIER] ✅ Classified as:
+2026-06-18 13:07:09 | INFO     | llm_classifier       |   - dependency_type: independent
+2026-06-18 13:07:09 | INFO     | llm_classifier       |   - retrieval_intent: summary
+2026-06-18 13:07:09 | INFO     | llm_classifier       |   - answer_source: document
+2026-06-18 13:07:09 | INFO     | llm_classifier       |   - retrieval_scope: whole_document
+2026-06-18 13:07:09 | INFO     | llm_classifier       |   - standalone_query: Summarize the entire electricity.pdf document.
+2026-06-18 13:07:09 | INFO     | llm_classifier       |   - reasoning: The user requests a comprehensive summary of the entire loaded PDF, which is a clear, self-contained
+2026-06-18 13:07:09 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Classifying: give me an overview of the entire document
+2026-06-18 13:07:11 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Parsed response: independent | summary
+2026-06-18 13:07:11 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Standalone query: Provide an overview of the entire document.
+2026-06-18 13:07:11 | INFO     | llm_classifier       | [LLM_CLASSIFIER] ✅ Classified as:
+2026-06-18 13:07:11 | INFO     | llm_classifier       |   - dependency_type: independent
+2026-06-18 13:07:11 | INFO     | llm_classifier       |   - retrieval_intent: summary
+2026-06-18 13:07:11 | INFO     | llm_classifier       |   - answer_source: document
+2026-06-18 13:07:11 | INFO     | llm_classifier       |   - retrieval_scope: whole_document
+2026-06-18 13:07:11 | INFO     | llm_classifier       |   - standalone_query: Provide an overview of the entire document.
+2026-06-18 13:07:11 | INFO     | llm_classifier       |   - reasoning: The query is self-contained, asks for an overview of the entire loaded document, and does not depend
+2026-06-18 13:07:11 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Classifying: summarize the section on Ohm's law
+2026-06-18 13:07:14 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Parsed response: independent | summary
+2026-06-18 13:07:14 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Standalone query: Summarize the section on Ohm's law in the document.
+2026-06-18 13:07:14 | INFO     | llm_classifier       | [LLM_CLASSIFIER] ✅ Classified as:
+2026-06-18 13:07:14 | INFO     | llm_classifier       |   - dependency_type: independent
+2026-06-18 13:07:14 | INFO     | llm_classifier       |   - retrieval_intent: summary
+2026-06-18 13:07:14 | INFO     | llm_classifier       |   - answer_source: document
+2026-06-18 13:07:14 | INFO     | llm_classifier       |   - retrieval_scope: specific
+2026-06-18 13:07:14 | INFO     | llm_classifier       |   - standalone_query: Summarize the section on Ohm's law in the document.
+2026-06-18 13:07:14 | INFO     | llm_classifier       |   - reasoning: The query is self-contained, asks for an overview of a specific section ('Ohm's law'), and does not 
+2026-06-18 13:07:14 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Classifying: summarize how resistance works
+2026-06-18 13:07:17 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Parsed response: independent | summary
+2026-06-18 13:07:17 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Standalone query: Summarize how resistance works
+2026-06-18 13:07:17 | INFO     | llm_classifier       | [LLM_CLASSIFIER] ✅ Classified as:
+2026-06-18 13:07:17 | INFO     | llm_classifier       |   - dependency_type: independent
+2026-06-18 13:07:17 | INFO     | llm_classifier       |   - retrieval_intent: summary
+2026-06-18 13:07:17 | INFO     | llm_classifier       |   - answer_source: document
+2026-06-18 13:07:17 | INFO     | llm_classifier       |   - retrieval_scope: specific
+2026-06-18 13:07:17 | INFO     | llm_classifier       |   - standalone_query: Summarize how resistance works
+2026-06-18 13:07:17 | INFO     | llm_classifier       |   - reasoning: The query is self-contained, asks for an overview of how resistance works (a specific topic), and do
+2026-06-18 13:07:17 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Classifying: what is the SI unit of current
+2026-06-18 13:07:20 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Parsed response: independent | factual
+2026-06-18 13:07:20 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Standalone query: What is the SI unit of current?
+2026-06-18 13:07:20 | INFO     | llm_classifier       | [LLM_CLASSIFIER] ✅ Classified as:
+2026-06-18 13:07:20 | INFO     | llm_classifier       |   - dependency_type: independent
+2026-06-18 13:07:20 | INFO     | llm_classifier       |   - retrieval_intent: factual
+2026-06-18 13:07:20 | INFO     | llm_classifier       |   - answer_source: document
+2026-06-18 13:07:20 | INFO     | llm_classifier       |   - retrieval_scope: specific
+2026-06-18 13:07:20 | INFO     | llm_classifier       |   - standalone_query: What is the SI unit of current?
+2026-06-18 13:07:20 | INFO     | llm_classifier       |   - reasoning: The query is a direct, self-contained question asking for the SI unit of current, which is a specifi

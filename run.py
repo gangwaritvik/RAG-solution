@@ -4,8 +4,8 @@ PDFRAG - Unified Entry Point
 Starts both backend (port 8000) and frontend (port 3000) servers
 
 Usage:
-    python run.py              # Normal run with persistent data
-    python run.py --fresh      # Clear vector store & memory on startup
+    python run.py              # Always clears vector store & memory on startup
+    python run.py --fresh      # Same behavior (kept for compatibility)
     python run.py --backend    # Backend only
     python run.py --frontend   # Frontend only
 """
@@ -31,13 +31,20 @@ STORAGE_PATH = PROJECT_ROOT / "PDFRAG-main" / "backend" / "storage"
 CHROMA_PATH = STORAGE_PATH / "chroma_db"
 
 def run_backend():
-    """Start backend HTTP server on port 8000"""
+    """Start backend API server on port 8000 (FastAPI + uvicorn)."""
     print("\n" + "="*60)
-    print("🚀 Starting BACKEND (port 8000)...")
+    print("🚀 Starting BACKEND (FastAPI/uvicorn, port 8000)...")
     print("="*60 + "\n")
-    
-    os.chdir(str(PROJECT_ROOT))
-    subprocess.run([sys.executable, str(BACKEND_PATH)])
+
+    os.chdir(str(PROJECT_ROOT / "PDFRAG-main"))
+    # Launch the FastAPI app via uvicorn. The module path is backend.app:app.
+    subprocess.run([
+        sys.executable, "-m", "uvicorn",
+        "backend.app:app",
+        "--host", "localhost",
+        "--port", "8000",
+        "--log-level", "warning",
+    ])
 
 def run_frontend():
     """Start frontend HTTP server on port 3000"""
@@ -47,6 +54,25 @@ def run_frontend():
     
     os.chdir(str(FRONTEND_PATH))
     subprocess.run([sys.executable, "-m", "http.server", "3000"])
+
+def wait_for_backend(host="localhost", port=8000, timeout=90):
+    """Block until the backend accepts TCP connections, or until ``timeout`` seconds.
+
+    uvicorn binds the port only AFTER it imports the app, which runs all the heavy
+    pipeline singleton initialization (Embedder, VectorStore, memory manager, ...). So a
+    successful connection means the backend is fully loaded and ready to serve. Polling
+    for this — instead of a blind fixed sleep — ensures the frontend (and the browser)
+    only come up once queries will actually work. Returns True if ready, False on timeout.
+    """
+    import socket
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with socket.create_connection((host, port), timeout=1):
+                return True
+        except OSError:
+            time.sleep(0.5)
+    return False
 
 def clear_storage():
     """Clear all persisted data (vectors, conversations, memory)"""
@@ -82,7 +108,9 @@ def clear_storage():
 
 def main():
     # Parse command-line arguments
-    fresh_start = "--fresh" in sys.argv
+    # Always run with fresh data as requested.
+    # Keep --fresh accepted for backward compatibility.
+    fresh_start = True
     backend_only = "--backend" in sys.argv
     frontend_only = "--frontend" in sys.argv
     
@@ -125,8 +153,16 @@ def main():
             backend_thread = threading.Thread(target=run_backend, daemon=False)
             backend_thread.start()
             
-            # Give backend time to start
-            time.sleep(3)
+            # Wait until the backend is actually ready before starting the frontend.
+            # uvicorn binds port 8000 only AFTER importing the app (which initializes every
+            # pipeline singleton), so a successful connection means "fully loaded". This
+            # replaces a blind fixed sleep, so the frontend/browser never come up while the
+            # backend is still initializing.
+            print("⏳ Waiting for backend to finish initializing...")
+            if wait_for_backend(port=8000, timeout=90):
+                print("✅ Backend ready\n")
+            else:
+                print("⚠️  Backend not ready after 90s — starting frontend anyway\n")
             
             frontend_thread = threading.Thread(target=run_frontend, daemon=False)
             frontend_thread.start()
@@ -137,7 +173,7 @@ def main():
             print("📄 Backend:  http://localhost:8000")
             print("🌐 Frontend: http://localhost:3000")
             print("\n⏹️  Press Ctrl+C to stop both servers")
-            print("📝 Tip: Use 'python run.py --fresh' to start with clean data\n")
+            print("📝 Startup mode: always fresh (storage cleared on launch)\n")
             
             # Keep main thread alive
             while True:

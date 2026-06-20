@@ -17,6 +17,7 @@ class ConversationTurn:
     dependency_type: Optional[str] = None  # independent, dependent, multi_group, ambiguous
     retrieval_intent: Optional[str] = None  # factual, summary, comparison, extraction, analysis, ambiguous
     full_answer: str = ""  # Complete answer text (used to resolve follow-ups like "summarize the above")
+    restrict_filenames: Optional[List[str]] = None  # File pin used for this turn (for follow-up carry-forward)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
@@ -33,6 +34,7 @@ class ConversationTurn:
             dependency_type=data.get("dependency_type"),
             retrieval_intent=data.get("retrieval_intent"),
             full_answer=data.get("full_answer", ""),
+            restrict_filenames=data.get("restrict_filenames"),
         )
 
 

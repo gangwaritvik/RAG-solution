@@ -91,7 +91,8 @@ class ConversationMemoryManager:
         memory_summary: str,
         dependency_type: Optional[str] = None,
         retrieval_intent: Optional[str] = None,
-        full_answer: str = ""
+        full_answer: str = "",
+        restrict_filenames: Optional[List[str]] = None
     ) -> Optional[ConversationTurn]:
         """
         Add a turn to a conversation group.
@@ -115,6 +116,7 @@ class ConversationMemoryManager:
             dependency_type=dependency_type,
             retrieval_intent=retrieval_intent,
             full_answer=full_answer,
+            restrict_filenames=restrict_filenames,
         )
         
         if self.group_memory.add_turn_to_group(group_id, turn):

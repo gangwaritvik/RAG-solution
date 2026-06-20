@@ -1,136 +1,151 @@
-var state = {  
-    files: [],  
-    queryCount: 0,  
+var state = {
+    files: [],
+    queryCount: 0,
     totalChunks: 0,
     activeGroupId: null  // Track active conversation group
 };
+
+var TOP_K_FALLBACK_MAX = 999;
 
 const API_BASE_URL = 'http://localhost:8000';
 
 var qsExpanded = true;
 
 
-function setText(id, val) {  
-    var el = document.getElementById(id);  
-    if (el) el.textContent = val;  
+function setText(id, val) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = val;
 }
 
-var CHUNK_DESCRIPTIONS = {  
-    recursive: 'Splits by character count with smart separator fallback — fast &amp; reliable.',  
-    semantic:  'Splits by meaning using embeddings — preserves topic context. Slower, uses embedding API.',  
-    sliding:   'Overlapping windows of fixed size — ensures no context is lost at chunk boundaries.',  
-    fixed:     'Hard splits at exact character count — simple, predictable, no overlap.'  
+var CHUNK_DESCRIPTIONS = {
+    recursive: 'Splits by character count with smart separator fallback � fast &amp; reliable.',
+    semantic:  'Splits by meaning using embeddings � preserves topic context. Slower, uses embedding API.',
+    sliding:   'Overlapping windows of fixed size � ensures no context is lost at chunk boundaries.',
+    fixed:     'Hard splits at exact character count � simple, predictable, no overlap.'
 };
 
-function updateChunkMode() {  
-    var select = document.getElementById('chunkModeSelect');  
-    var desc   = document.getElementById('chunkModeDesc');  
-    var mode   = select.value;  
-    if (desc) desc.innerHTML = CHUNK_DESCRIPTIONS[mode] || '';  
-    toast(mode === 'semantic' ? '🧠 Semantic chunking selected' : '⚡ ' + mode + ' chunking selected', 'info');  
+function updateChunkMode() {
+    var select = document.getElementById('chunkModeSelect');
+    var desc   = document.getElementById('chunkModeDesc');
+    var mode   = select.value;
+    if (desc) desc.innerHTML = CHUNK_DESCRIPTIONS[mode] || '';
+    toast(mode === 'semantic' ? '?? Semantic chunking selected' : '? ' + mode + ' chunking selected', 'info');
 }
 
-function getChunkMode() {  
-    var select = document.getElementById('chunkModeSelect');  
-    return select ? select.value : 'recursive';  
+function getChunkMode() {
+    var select = document.getElementById('chunkModeSelect');
+    return select ? select.value : 'recursive';
 }
 
-/* ══ TOP-K MAX TOGGLE ══ */  
-var topKMaxActive = false;
-var qsSettingsEnabled = false;  // master switch: when off, backend uses per-intent defaults
+function hasProcessedDocs() {
+    for (var i = 0; i < state.files.length; i = i + 1) {
+        if (state.files[i].status === 'done') return true;
+    }
+    return false;
+}
 
-// Master enable/disable for Query Settings. When OFF, the Top-K/MAX controls are
-// inert and the query sends NO override (each intent uses its own default cap).
-// When ON, the user's Top-K is sent as an explicit override that wins over defaults.
-function toggleQuerySettingsEnabled(enabled, silent) {
-    qsSettingsEnabled = !!enabled;
+function getEffectiveTopKMax() {
+    // After ingestion, cap manual Top-K to real available chunks.
+    if (state.totalChunks && state.totalChunks > 0) return state.totalChunks;
+    return TOP_K_FALLBACK_MAX;
+}
+
+/* -- TOP-K MANUAL TOGGLE -- */
+var topKEnabled = false;  // when off, backend uses automatic per-intent defaults
+
+function syncTopKControlsState() {
+    var canUseTopK = hasProcessedDocs() && state.totalChunks > 0;
     var slider = document.getElementById('topK');
-    var maxBtn = document.getElementById('btnTopKMax');
-    var note   = document.getElementById('qsDisabledNote');
-    var body   = document.getElementById('qsBody');
-
-    if (body) body.classList.toggle('qs-disabled', !qsSettingsEnabled);
-    if (note) note.style.display = qsSettingsEnabled ? 'none' : 'block';
-
-    // Top-K slider follows the switch, unless MAX is active (MAX manages it itself).
-    if (slider && !topKMaxActive) slider.disabled = !qsSettingsEnabled;
-    if (maxBtn) maxBtn.disabled = !qsSettingsEnabled;
-
-    // Keep the checkbox in sync (e.g. when called programmatically on init).
     var box = document.getElementById('qsEnable');
-    if (box) box.checked = qsSettingsEnabled;
+    var item = document.getElementById('topKItem');
+    var hint = document.getElementById('topKHint');
 
-    if (silent) return;
+    if (!slider) return;
 
-    if (qsSettingsEnabled) {
-        // Make sure the panel is open so the user can see the controls.
-        if (!qsExpanded) toggleQuerySettings();
-        var v = slider ? slider.value : '5';
-        toast('Manual Top-K enabled — using ' + (topKMaxActive ? 'MAX' : v), 'info');
-    } else {
-        // Leaving manual mode: drop MAX so we return cleanly to intent defaults.
-        if (topKMaxActive) toggleTopKMax();
-        toast('Manual settings off — using automatic per-intent defaults', 'info');
+    var effectiveMax = getEffectiveTopKMax();
+    slider.max = String(effectiveMax);
+
+    if (item) item.classList.toggle('qs-topk-disabled', !topKEnabled || !canUseTopK);
+    if (box) box.disabled = !canUseTopK;
+
+    if (!canUseTopK) {
+        topKEnabled = false;
+        slider.disabled = true;
+        if (box) box.checked = false;
+        if (hint) hint.textContent = 'Process documents until chunks are available to enable manual Top-K.';
+        return;
+    }
+
+    slider.disabled = !topKEnabled;
+
+    var current = parseInt(slider.value || '5', 10) || 5;
+    if (current > effectiveMax) {
+        slider.value = String(effectiveMax);
+        current = effectiveMax;
+    }
+
+    var display = document.getElementById('topKDisplay');
+    if (display) display.textContent = String(current);
+
+    if (hint) {
+        hint.textContent = topKEnabled
+            ? 'Manual � ' + current + ' chunks per query (max ' + effectiveMax + ').'
+            : 'Auto � using per-intent defaults. Toggle to set manually (max ' + effectiveMax + ').';
     }
 }
 
-function toggleTopKMax() {  
-    topKMaxActive = !topKMaxActive;  
-    var btn     = document.getElementById('btnTopKMax');  
-    var slider  = document.getElementById('topK');  
+// Enable/disable MANUAL Top-K. When OFF, the Top-K slider is inert and the query
+// sends NO override (each intent uses its own default cap). When ON, the slider
+// value is sent as an explicit override that wins over defaults.
+function toggleTopKEnabled(enabled, silent) {
+    if (!(hasProcessedDocs() && state.totalChunks > 0)) {
+        topKEnabled = false;
+        syncTopKControlsState();
+        if (!silent) toast('Process documents first to enable manual Top-K', 'info');
+        return;
+    }
+
+    topKEnabled = !!enabled;
+    syncTopKControlsState();
+
+    if (silent) return;
+    var slider = document.getElementById('topK');
+    toast(topKEnabled
+        ? 'Manual Top-K enabled � using ' + (slider ? slider.value : '5')
+        : 'Manual Top-K off � using automatic per-intent defaults', 'info');
+}
+
+function updateTopK(val) {
     var display = document.getElementById('topKDisplay');
-
-    if (topKMaxActive) {  
-        if (btn)     btn.classList.add('active');  
-        if (display) display.textContent = 'ALL';  
-        if (slider)  slider.disabled = true;  
-        toast('Top-K set to MAX — all chunks will be retrieved', 'info');  
-    } else {  
-        if (btn)     btn.classList.remove('active');  
-        if (slider)  slider.disabled = !qsSettingsEnabled;  
-        var val = slider ? slider.value : '5';  
-        if (display) display.textContent = val;  
-        toast('Top-K restored to ' + val, 'info');  
-    }  
+    if (display) display.textContent = val;
+    var hint = document.getElementById('topKHint');
+    if (topKEnabled && hint) hint.textContent = 'Manual � ' + val + ' chunks per query (max ' + getEffectiveTopKMax() + ').';
 }
 
-function updateTopK(val) {  
-    var display = document.getElementById('topKDisplay');  
-    if (!topKMaxActive && display) display.textContent = val;  
+function updateTemp(val) {
+    var display = document.getElementById('tempDisplay');
+    if (display) display.textContent = parseFloat(val).toFixed(1);
 }
 
-function updateTemp(val) {  
-    var display = document.getElementById('tempDisplay');  
-    if (display) display.textContent = parseFloat(val).toFixed(1);  
-}
-
-// Explicit Top-K override to send to the backend, or null when manual settings are
-// disabled (so the backend falls back to each intent's default cap). When MAX is
-// active we send no number — the retrieve_all flag handles "all chunks" instead.
+// Explicit Top-K override to send to the backend, or null when manual Top-K is
+// disabled (so the backend falls back to each intent's default cap).
 function getTopKOverride() {
-    if (!qsSettingsEnabled) return null;
-    if (topKMaxActive) return null;
+    if (!topKEnabled) return null;
     var el = document.getElementById('topK');
-    return parseInt(el ? el.value : '5') || 5;
+    return parseInt(el ? el.value : '5', 10) || 5;
 }
 
-// True when the user wants EVERY chunk (MAX toggle, manual settings on).
-function getRetrieveAll() {
-    return qsSettingsEnabled && topKMaxActive;
+function getTopK() {
+    var el = document.getElementById('topK');
+    return parseInt(el ? el.value : '5', 10) || 5;
 }
 
-function getTopK() {  
-    if (topKMaxActive) return state.totalChunks || 9999;  
-    var el = document.getElementById('topK');  
-    return parseInt(el ? el.value : '5') || 5;  
+function getTemp() {
+    var el = document.getElementById('temp');
+    return parseFloat(el ? el.value : '0.2') || 0.2;
 }
 
-function getTemp() {  
-    var el = document.getElementById('temp');  
-    return parseFloat(el ? el.value : '0.2') || 0.2;  
-}
-
-/* ══ UPLOAD ZONE ══ */  
+/* -- UPLOAD ZONE -- */
 document.addEventListener('DOMContentLoaded', function() {  
     var zone  = document.getElementById('uploadZone');  
     var input = document.getElementById('fileInput');
@@ -175,8 +190,9 @@ document.addEventListener('DOMContentLoaded', function() {
         input.value = '';  
     });  
 
-    // Start with manual settings OFF → automatic per-intent defaults.
-    toggleQuerySettingsEnabled(false, true);
+    // Start with manual Top-K OFF → automatic per-intent defaults.
+    toggleTopKEnabled(false, true);
+    syncTopKControlsState();
 });
 
 function isSupported(f) {  
@@ -295,6 +311,7 @@ function renderFiles() {
     setText('sFiles',    state.files.length);  
     setText('sChunks',   state.totalChunks);  
     setText('sQueries',  state.queryCount);  
+    syncTopKControlsState();
 }
 
 function toggleChunks(id) {  
@@ -612,46 +629,102 @@ async function submitQuery() {
     if (empty) empty.remove();
 
     appendUserMessage(query);  
-    var typingId = appendTyping();  
-    var t0       = Date.now();
+    var t0 = Date.now();
 
-    try {  
-        var res  = await fetch(API_BASE_URL + '/query', {  
-            method:  'POST',  
-            headers: { 'Content-Type': 'application/json' },  
-            body:    JSON.stringify({  
-                query:          query,  
-                top_k:          getTopK(),  
-                temperature:    getTemp(),
-                top_k_override: getTopKOverride(),  // null unless manual settings are enabled
-                retrieve_all:   getRetrieveAll(),   // true when MAX toggle is on → every chunk
-                group_id:       state.activeGroupId  // Send active group with query
-            })  
-        });  
-        var data = await res.json();  
-        if (data.error) throw new Error(data.error);
-
-        var elapsed = ((Date.now() - t0) / 1000).toFixed(2) + 's';  
-        state.queryCount = state.queryCount + 1;  
-        setText('sQueries', state.queryCount);
-        
-        // Store the active group for next query
-        if (data.group_id) {
-            state.activeGroupId = data.group_id;
-        }
-
-        removeTyping(typingId);  
-        var answerText = (data.answer && typeof data.answer === 'string')  
-            ? data.answer  
-            : 'No answer returned.';  
-        appendAIMessage(answerText, data.sources, elapsed);  
-    } catch (e) {  
-        removeTyping(typingId);  
-        appendAIMessage('Error: ' + e.message, [], '0s');  
-        toast('Error: ' + e.message, 'error');  
+    try {
+        await streamQuery(query, t0);
+    } catch (e) {
+        appendAIMessage('Error: ' + e.message, [], '0s');
+        toast('Error: ' + e.message, 'error');
     }
 
-    setLoading(false);  
+    setLoading(false);
+}
+
+// Stream the answer from POST /query/stream (Server-Sent Events over fetch).
+async function streamQuery(query, t0) {
+    var res = await fetch(API_BASE_URL + '/query/stream', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+            query:          query,
+            top_k:          getTopK(),
+            temperature:    getTemp(),
+            top_k_override: getTopKOverride(),
+            group_id:       state.activeGroupId
+        })
+    });
+
+    if (!res.ok || !res.body) {
+        // Non-streaming error (e.g. 400 with JSON body)
+        var errData = null;
+        try { errData = await res.json(); } catch (e) {}
+        throw new Error(errData && errData.error ? errData.error : ('HTTP ' + res.status));
+    }
+
+    var msg        = createStreamingAIMessage();
+    var fullAnswer = '';
+    var sources    = null;
+    var finalAnswer = null;
+
+    var reader  = res.body.getReader();
+    var decoder = new TextDecoder('utf-8');
+    var buffer  = '';
+
+    while (true) {
+        var chunk = await reader.read();
+        if (chunk.done) break;
+        buffer += decoder.decode(chunk.value, { stream: true });
+
+        // SSE frames are separated by a blank line.
+        var frames = buffer.split('\n\n');
+        buffer = frames.pop();  // keep incomplete trailing frame
+
+        for (var i = 0; i < frames.length; i = i + 1) {
+            var line = frames[i].trim();
+            if (line.indexOf('data:') !== 0) continue;
+            var payload = line.slice(5).trim();
+            if (!payload) continue;
+
+            var ev;
+            try { ev = JSON.parse(payload); } catch (e) { continue; }
+
+            if (ev.type === 'meta') {
+                sources = ev.retrieved_chunks || [];
+                if (ev.group_id) state.activeGroupId = ev.group_id;
+            } else if (ev.type === 'token') {
+                fullAnswer += ev.text;
+                msg.bubble.textContent = fullAnswer;
+                scrollChat();
+            } else if (ev.type === 'done') {
+                finalAnswer = (typeof ev.answer === 'string' && ev.answer) ? ev.answer : fullAnswer;
+            } else if (ev.type === 'error') {
+                throw new Error(ev.error || 'stream error');
+            }
+        }
+    }
+
+    // Finalize: render full markdown + LaTeX, attach sources, stamp elapsed time.
+    var answerText = (finalAnswer != null) ? finalAnswer : (fullAnswer || 'No answer returned.');
+    var elapsed = ((Date.now() - t0) / 1000).toFixed(2) + 's';
+
+    msg.bubble.classList.remove('chat-ai-streaming');
+    msg.bubble.innerHTML = fmtAnswer(answerText);
+    if (msg.sourcesSlot) msg.sourcesSlot.innerHTML = buildSourcesHTML(sources);
+    if (msg.elapsedEl) msg.elapsedEl.innerHTML = '&middot; ' + elapsed;
+
+    state.queryCount = state.queryCount + 1;
+    setText('sQueries', state.queryCount);
+
+    if (window.MathJax) {
+        MathJax.typesetPromise([msg.row]).catch(function(err) { console.error('MathJax:', err); });
+    }
+    scrollChat();
+}
+
+function scrollChat() {
+    var area = document.getElementById('chatArea');
+    if (area) area.scrollTop = area.scrollHeight;
 }
 
 function appendUserMessage(query) {  
@@ -688,28 +761,7 @@ function appendAIMessage(answer, sources, elapsed) {
     var row  = document.createElement('div');  
     row.className = 'chat-row';
 
-    var sourcesHTML = '';  
-    if (sources && sources.length) {  
-        var chips = '';  
-        for (var i = 0; i < sources.length; i = i + 1) {  
-            var s        = sources[i];  
-            var ctype    = s.chunk_type || 'recursive';  
-            var chunkNum = (s.chunk_index != null ? s.chunk_index : i) + 1;  
-            var score    = s.score ? s.score.toFixed(2) : '—';  
-            chips = chips  
-                                + '<div class="source-chip" style="animation-delay:' + (i * 0.05) + 's"'  
-                                + ' onclick="openChunkModal(\'' + esc(s.filename) + '\', ' + chunkNum  
-                                + ', ' + s.page + ', \'' + esc(s.text || '') + '\', \'' + ctype + '\')">'  
-                                + '<span class="chip-file">&#128196; ' + esc(s.filename) + '</span>'  
-                                + '<span class="chip-info">pg.' + s.page + '</span>'  
-                                + '<span class="chip-sim">' + score + '</span>'  
-                                + '</div>';  
-        }  
-        sourcesHTML = '<div class="chat-sources">'  
-                        + '<div class="chat-sources-label">Sources (' + sources.length + ')</div>'  
-                        + '<div class="sources-chips">' + chips + '</div>'  
-                        + '</div>';  
-    }
+    var sourcesHTML = buildSourcesHTML(sources);
 
     row.innerHTML = '<div class="chat-ai">'  
                 + '<div class="chat-ai-header">'  
@@ -726,6 +778,72 @@ function appendAIMessage(answer, sources, elapsed) {
     if (window.MathJax) {  
         MathJax.typesetPromise([row]).catch(function(err) { console.error('MathJax:', err); });  
     }  
+}
+
+// Build the "Sources (N)" chips block from a list of retrieved chunks.
+// Rendered as a collapsible dropdown — collapsed by default so a large source
+// list (e.g. 94 chunks) doesn't flood the chat. Click the header to expand.
+function buildSourcesHTML(sources) {
+    if (!sources || !sources.length) return '';
+    var chips = '';
+    for (var i = 0; i < sources.length; i = i + 1) {
+        var s        = sources[i];
+        var ctype    = s.chunk_type || 'recursive';
+        var chunkNum = (s.chunk_index != null ? s.chunk_index : i) + 1;
+        var score    = s.score ? s.score.toFixed(2) : '—';
+        chips = chips
+                    + '<div class="source-chip" style="animation-delay:' + (i * 0.05) + 's"'
+                    + ' onclick="openChunkModal(\'' + esc(s.filename) + '\', ' + chunkNum
+                    + ', ' + s.page + ', \'' + esc(s.text || '') + '\', \'' + ctype + '\')">'
+                    + '<span class="chip-file">&#128196; ' + esc(s.filename) + '</span>'
+                    + '<span class="chip-info">pg.' + s.page + '</span>'
+                    + '<span class="chip-sim">' + score + '</span>'
+                    + '</div>';
+    }
+    var sid = 'src-' + (sourcesSeq++);
+    return '<div class="chat-sources">'
+            + '<div class="chat-sources-label" onclick="toggleSources(\'' + sid + '\')">'
+            + '<span class="src-arrow" id="arrow-' + sid + '">&#9658;</span> '
+            + 'Sources (' + sources.length + ')'
+            + '</div>'
+            + '<div class="sources-chips" id="' + sid + '">' + chips + '</div>'
+            + '</div>';
+}
+
+var sourcesSeq = 0;
+
+// Expand/collapse a sources dropdown.
+function toggleSources(id) {
+    var chipsEl = document.getElementById(id);
+    var arrow   = document.getElementById('arrow-' + id);
+    if (!chipsEl) return;
+    var open = chipsEl.classList.toggle('open');
+    if (arrow) arrow.innerHTML = open ? '&#9660;' : '&#9658;';
+}
+
+// Create an empty AI message shell that tokens can be streamed into. Returns the
+// row plus the live bubble element. The bubble uses pre-wrap so raw streamed text
+// reads naturally; it is re-rendered with full markdown/MathJax when streaming ends.
+function createStreamingAIMessage() {
+    var area = document.getElementById('chatArea');
+    var row  = document.createElement('div');
+    row.className = 'chat-row';
+    row.innerHTML = '<div class="chat-ai">'
+                + '<div class="chat-ai-header">'
+                + '<div class="chat-ai-avatar">&#x2B21;</div>'
+                + 'GPT-4.1 <span class="chat-ai-elapsed" style="color:var(--t3);margin-left:6px;">&middot; streaming&hellip;</span>'
+                + '</div>'
+                + '<div class="chat-ai-bubble chat-ai-streaming"></div>'
+                + '<div class="chat-ai-sources-slot"></div>'
+                + '</div>';
+    area.appendChild(row);
+    area.scrollTop = area.scrollHeight;
+    return {
+        row: row,
+        bubble: row.querySelector('.chat-ai-bubble'),
+        sourcesSlot: row.querySelector('.chat-ai-sources-slot'),
+        elapsedEl: row.querySelector('.chat-ai-elapsed'),
+    };
 }
 
 function setLoading(on) {  
@@ -826,6 +944,13 @@ function fmtAnswer(text) {
     out = out.replace(/\\\([\s\S]+?\\\)/g, stashMath);   // \( ... \)  (inline)
     out = out.replace(/\$[^$\n]+?\$/g,     stashMath);   // $ ... $    (inline)
 
+    // Some models wrap the whole answer in bare heading markers on their own lines
+    // (a lone "##" at the very top and bottom). A heading marker with no text is never
+    // meaningful, so drop any line that is ONLY '#' characters, then trim the blank
+    // edges. Real headings like "## Heading" have text after the space and are kept.
+    out = out.replace(/^[ \t]*#{1,6}[ \t]*$/gm, '');
+    out = out.replace(/^\s+|\s+$/g, '');
+
     out = out.replace(/^### (.+)$/gm, '<h4 class="ans-h4">$1</h4>');  
     out = out.replace(/^## (.+)$/gm,  '<h3 class="ans-h3">$1</h3>');  
     out = out.replace(/^# (.+)$/gm,   '<h2 class="ans-h2">$1</h2>');  
@@ -863,11 +988,16 @@ function fmtAnswer(text) {
                 var tag    = firstRow ? 'th' : 'td';  
                 var rowHTML = '<tr>';
 
+                // split('|') on "| a | b |" yields a leading and trailing '' from the
+                // outer pipes — drop ONLY those. Interior cells are kept even when empty,
+                // otherwise a blank cell makes every following cell shift left and the
+                // columns misalign (e.g. a colour row with no letter).
+                if (cells.length && cells[0].trim() === '') cells.shift();
+                if (cells.length && cells[cells.length - 1].trim() === '') cells.pop();
+
                 for (var c = 0; c < cells.length; c = c + 1) {  
                     var cell = cells[c].trim();  
-                    if (cell !== '') {  
-                        rowHTML = rowHTML + '<' + tag + '>' + cell + '</' + tag + '>';  
-                    }  
+                    rowHTML = rowHTML + '<' + tag + '>' + cell + '</' + tag + '>';  
                 }
 
                 rowHTML   = rowHTML + '</tr>';  
@@ -890,6 +1020,10 @@ function fmtAnswer(text) {
     out = out.replace(/(<li class="ans-li">[\s\S]*?<\/li>)/g, '<ul class="ans-ul">$1</ul>');  
     out = out.replace(/<\/ul>\s*<ul class="ans-ul">/g, '');  
     out = out.replace(/^\d+\. (.+)$/gm,    '<li class="ans-li">$1</li>');  
+    // Strip a redundant leading bullet glyph the model sometimes puts INSIDE a list item
+    // (e.g. "- • text"). The list's single bullet is supplied by CSS (.ans-li::before),
+    // so a literal •/·/‣/▪/◦ at the start of the item would render as a SECOND bullet.
+    out = out.replace(/(<li class="ans-li">)\s*[•·‣▪◦]\s+/g, '$1');  
     out = out.replace(/`([^`]+)`/g,        '<code class="ans-code">$1</code>');  
     out = out.replace(/(\(Page[^)]+\))/g,  '<span class="ans-cite">$1</span>');  
     out = out.replace(/\n(?!<(h[2-4]|ul|li|hr|div|table))/g, '<br/>');

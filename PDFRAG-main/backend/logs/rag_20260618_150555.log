@@ -1,0 +1,2 @@
+2026-06-18 15:05:59 | INFO     | vector_store         | VectorStore initializing — persist_dir: C:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\chroma_db
+2026-06-18 15:05:59 | INFO     | vector_store         | VectorStore ✅ Collection loaded — 96 existing vectors

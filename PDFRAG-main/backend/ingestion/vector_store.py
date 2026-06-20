@@ -93,17 +93,25 @@ class VectorStore:
             log.error(f"[STORE] ❌ Add FAILED — {type(e).__name__}: {e}", exc_info=True)  
             raise
 
-    def search(self, query_embedding: List[float], top_k: int = 5) -> List[Dict[str, Any]]:  
-        log.info(f"[STORE] Searching top-{top_k} — total vectors: {self.collection.count()}")  
+    def search(self, query_embedding: List[float], top_k: int = 5, where: Dict[str, Any] = None) -> List[Dict[str, Any]]:  
+        log.info(
+            f"[STORE] Searching top-{top_k} — total vectors: {self.collection.count()}"
+            + (f" | filter={where}" if where else "")
+        )  
         if self.collection.count() == 0:  
             log.warning("[STORE] ⚠️ Collection is empty — no results")  
             return []  
         try:  
-            results = self.collection.query(  
-                query_embeddings=[query_embedding],  
-                n_results=min(top_k, self.collection.count()),  
-                include=["documents", "metadatas", "distances"],  
-            )  
+            query_kwargs = {  
+                "query_embeddings": [query_embedding],  
+                "n_results": min(top_k, self.collection.count()),  
+                "include": ["documents", "metadatas", "distances"],  
+            }  
+            # Optional metadata filter (e.g. {"filename": "x.pdf"}) for per-subject
+            # document pinning, applied at the store so unrelated docs never come back.
+            if where:  
+                query_kwargs["where"] = where  
+            results = self.collection.query(**query_kwargs)  
             hits = []  
             for i in range(len(results["ids"][0])):  
                 meta  = results["metadatas"][0][i]  

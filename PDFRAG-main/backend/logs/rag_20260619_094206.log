@@ -1,0 +1,20 @@
+2026-06-19 09:42:47 | INFO     | document_loader      | DocumentLoader initialized — upload_dir: c:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\uploads
+2026-06-19 09:42:47 | INFO     | document_loader      | Supported formats: ['.pdf', '.docx']
+2026-06-19 09:42:47 | INFO     | chunker              | Chunker initialized — chunk_size: 1000 | overlap: 300
+2026-06-19 09:42:47 | INFO     | embedder             | Embedder initializing — endpoint: https://az-oai-collection.openai.azure.com/ | model: text-embedding-3-small
+2026-06-19 09:42:47 | INFO     | embedder             | Embedder ✅ initialized | max_workers: 10
+2026-06-19 09:42:47 | INFO     | vector_store         | VectorStore initializing — persist_dir: c:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\chroma_db
+2026-06-19 09:42:48 | INFO     | vector_store         | VectorStore ✅ Collection loaded — 94 existing vectors
+2026-06-19 09:42:49 | INFO     | memory_manager       | [MEMORY_MGR] Initializing conversation memory manager
+2026-06-19 09:42:49 | INFO     | memory_store         | [MEMORY_STORE] Initializing with Chroma DB at c:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\chroma_db
+2026-06-19 09:42:49 | INFO     | memory_store         | [MEMORY_STORE] ✅ Collections loaded — metadata: 31, summaries: 0
+2026-06-19 09:42:49 | INFO     | memory_store         | [MEMORY_STORE] ✅ Retrieved 31 groups
+2026-06-19 09:42:49 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Loaded 31 groups from storage
+2026-06-19 09:42:49 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Manager initialized
+2026-06-19 09:42:49 | INFO     | main                 | [STARTUP] Conversation memory manager initialized
+2026-06-19 09:42:49 | INFO     | context_resolver     | [RESOLVER] ✅ LLM classifier initialized
+2026-06-19 09:42:49 | INFO     | multi_group_processor | [MULTI_GROUP] ✅ Initialized with max_workers=5
+2026-06-19 09:42:49 | INFO     | background_summarizer | [BG_SUMMARIZER] Initialized with 3 workers
+2026-06-19 09:42:49 | INFO     | main                 | [STARTUP] Vector store ready — session started
+2026-06-19 09:42:49 | INFO     | main                 | [STARTUP] Conversation memory manager initialized
+2026-06-19 09:42:49 | DEBUG    | asyncio              | Using proactor: IocpProactor

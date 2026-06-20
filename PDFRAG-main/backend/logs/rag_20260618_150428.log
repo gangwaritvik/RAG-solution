@@ -1,0 +1,50 @@
+2026-06-18 15:04:31 | INFO     | document_loader      | DocumentLoader initialized — upload_dir: c:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\uploads
+2026-06-18 15:04:31 | INFO     | document_loader      | Supported formats: ['.pdf', '.docx']
+2026-06-18 15:04:31 | INFO     | chunker              | Chunker initialized — chunk_size: 1000 | overlap: 300
+2026-06-18 15:04:31 | INFO     | embedder             | Embedder initializing — endpoint: https://az-oai-collection.openai.azure.com/ | model: text-embedding-3-small
+2026-06-18 15:04:31 | INFO     | embedder             | Embedder ✅ initialized | max_workers: 10
+2026-06-18 15:04:31 | INFO     | vector_store         | VectorStore initializing — persist_dir: c:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\chroma_db
+2026-06-18 15:04:31 | INFO     | vector_store         | VectorStore ✅ Collection loaded — 94 existing vectors
+2026-06-18 15:04:32 | INFO     | memory_manager       | [MEMORY_MGR] Initializing conversation memory manager
+2026-06-18 15:04:32 | INFO     | memory_store         | [MEMORY_STORE] Initializing with Chroma DB at c:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\chroma_db
+2026-06-18 15:04:32 | INFO     | memory_store         | [MEMORY_STORE] ✅ Collections loaded — metadata: 17, summaries: 0
+2026-06-18 15:04:32 | INFO     | memory_store         | [MEMORY_STORE] ✅ Retrieved 17 groups
+2026-06-18 15:04:32 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Loaded 17 groups from storage
+2026-06-18 15:04:32 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Manager initialized
+2026-06-18 15:04:32 | INFO     | main                 | [STARTUP] Conversation memory manager initialized
+2026-06-18 15:04:32 | INFO     | context_resolver     | [RESOLVER] ✅ LLM classifier initialized
+2026-06-18 15:04:32 | INFO     | multi_group_processor | [MULTI_GROUP_PROCESSOR] ✅ Initialized with max_workers=5
+2026-06-18 15:04:32 | INFO     | background_summarizer | [BG_SUMMARIZER] Initialized with 3 workers
+2026-06-18 15:04:32 | INFO     | main                 | [STARTUP] Vector store ready — session started
+2026-06-18 15:04:32 | INFO     | main                 | [STARTUP] Conversation memory manager initialized
+2026-06-18 15:04:32 | DEBUG    | asyncio              | Using proactor: IocpProactor
+2026-06-18 15:05:35 | INFO     | main                 | [INGEST_BG] Starting background processing for 1 file(s)
+2026-06-18 15:05:35 | INFO     | main                 | [CHUNKER] Selected: RecursiveCharacterTextSplitter (default)
+2026-06-18 15:05:35 | INFO     | main                 | [INGEST_BG] Processing: _clean_test.pdf (1394 bytes)
+2026-06-18 15:05:35 | INFO     | main                 | [INGEST_BG] STEP 1 — Loading _clean_test.pdf
+2026-06-18 15:05:35 | INFO     | document_loader      | [LOAD] Processing 1 file(s)
+2026-06-18 15:05:35 | INFO     | document_loader      | [SAVE] _clean_test.pdf → c:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\uploads\1e0a796cd81346edbdccdcd2917afe59.pdf (1394 bytes)
+2026-06-18 15:05:35 | INFO     | document_loader      | [LOAD] Using PDFLoader for _clean_test.pdf
+2026-06-18 15:05:35 | INFO     | pdf_loader           | [LOAD PDF] _clean_test.pdf — using PyMuPDF (simple text extraction)
+2026-06-18 15:05:35 | INFO     | pdf_loader           | [LOAD PDF] 2 pages found
+2026-06-18 15:05:35 | INFO     | pdf_loader           | [LOAD PDF] ✅ _clean_test.pdf — 2 non-empty pages extracted
+2026-06-18 15:05:35 | INFO     | main                 | [INGEST_BG] STEP 2 — Chunking _clean_test.pdf (mode: recursive)
+2026-06-18 15:05:35 | INFO     | chunker              | [CHUNK] Processing 1 document(s)
+2026-06-18 15:05:35 | INFO     | chunker              | [CHUNK] Starting — _clean_test.pdf | 2 pages
+2026-06-18 15:05:35 | DEBUG    | chunker              | [CHUNK] Split complete — 2 raw chunks
+2026-06-18 15:05:35 | INFO     | chunker              | [CHUNK] ✅ _clean_test.pdf — 2 pages → 2 chunks
+2026-06-18 15:05:35 | INFO     | main                 | [INGEST_BG] STEP 2.5 — Created 2 chunks from _clean_test.pdf
+2026-06-18 15:05:35 | DEBUG    | main                 | [INGEST_BG]   Chunk 1/2: Capacitance Basics A capacitor stores electric charge. SI unit farad. Memory note: Q = C V relates c...
+2026-06-18 15:05:35 | DEBUG    | main                 | [INGEST_BG]   Chunk 2/2: Energy stored in a capacitor is U = half C V squared. Capacitors in parallel add: Ceq = C1 + C2....
+2026-06-18 15:05:35 | INFO     | main                 | [INGEST_BG] STEP 3 — Embedding 2 chunks from _clean_test.pdf (batch_size: 500)
+2026-06-18 15:05:35 | INFO     | embedder             | [EMBED] Embedding 2 texts in 1 batch(es) | workers: 10
+2026-06-18 15:05:35 | DEBUG    | embedder             | [EMBED] Batch 1 — 2 texts (thread started)
+2026-06-18 15:05:35 | INFO     | embedder             | [EMBED] 📤 Batch 1 — Calling Azure OpenAI API for 2 chunks...
+2026-06-18 15:05:37 | INFO     | embedder             | [EMBED] ✅ Batch 1 — 2 texts embedded | dim: 1536 | Total: 2 chunks processed
+2026-06-18 15:05:37 | INFO     | main                 | [INGEST_BG] ✅ Embedded 2 vectors
+2026-06-18 15:05:37 | INFO     | main                 | [INGEST_BG] STEP 4 — Storing 2 vectors in ChromaDB
+2026-06-18 15:05:37 | INFO     | vector_store         | [STORE] Adding 2 vectors
+2026-06-18 15:05:38 | INFO     | vector_store         | [STORE] ✅ 2 vectors added — total now: 96
+2026-06-18 15:05:38 | INFO     | main                 | [INGEST_BG] ✅ _clean_test.pdf — ingested successfully
+2026-06-18 15:05:38 | INFO     | main                 | [INGEST_BG] ✅ Complete — 1 doc(s) | 96 total vectors
+2026-06-18 15:06:10 | INFO     | vector_store         | [STORE] ✅ Deleted 2 vectors for: _clean_test.pdf

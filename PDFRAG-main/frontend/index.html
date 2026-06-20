@@ -68,24 +68,21 @@
     <div class="qs-header" onclick="toggleQuerySettings()" style="cursor:pointer;">  
         <span class="qs-icon">&#x2699;</span>  
         <span class="qs-title">Query Settings</span>  
-        <label class="qs-switch" title="Enable manual settings (override intent defaults)" onclick="event.stopPropagation();">
-            <input type="checkbox" id="qsEnable" onchange="toggleQuerySettingsEnabled(this.checked)">
-            <span class="qs-switch-track"><span class="qs-switch-thumb"></span></span>
-        </label>
         <span class="qs-toggle-arrow" id="qsArrow">&#x25BE;</span>  
     </div>  
     
     <div class="qs-body" id="qsBody">
 
-        <p class="qs-disabled-note" id="qsDisabledNote">Using automatic per-intent defaults. Turn on the switch to set Top-K manually.</p>
-
-        <!-- Top-K -->  
-        <div class="qs-item">  
+        <!-- Top-K (with its own enable switch) -->  
+        <div class="qs-item" id="topKItem">  
             <div class="qs-item-top">  
                 <label class="qs-label" for="topK">Top-K</label>  
                 <div class="qs-topk-controls">  
                     <span class="qs-value" id="topKDisplay">5</span>  
-                    <button class="btn-topk-max" id="btnTopKMax" onclick="toggleTopKMax()" title="Use all chunks">MAX</button>  
+                    <label class="qs-switch" title="Set Top-K manually (override automatic per-intent defaults)" onclick="event.stopPropagation();">
+                        <input type="checkbox" id="qsEnable" onchange="toggleTopKEnabled(this.checked)">
+                        <span class="qs-switch-track"><span class="qs-switch-thumb"></span></span>
+                    </label>
                 </div>  
             </div>  
             <div class="qs-slider-wrap">  
@@ -94,17 +91,17 @@
                     id="topK"  
                     class="qs-slider"  
                     min="1"  
-                    max="20"  
+                    max="999"  
                     value="5"  
                     oninput="updateTopK(this.value)"  
                 />  
             </div>  
-            <p class="qs-hint">Chunks retrieved per query</p>  
+            <p class="qs-hint" id="topKHint">Auto — using per-intent defaults. Toggle to set manually.</p>  
         </div>
 
         <div class="qs-divider"></div>
 
-        <!-- Temperature -->  
+        <!-- Temperature (always available) -->  
         <div class="qs-item">  
             <div class="qs-item-top">  
                 <label class="qs-label" for="temp">Temperature</label>  

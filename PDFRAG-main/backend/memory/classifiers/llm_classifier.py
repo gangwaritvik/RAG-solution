@@ -162,19 +162,50 @@ class LLMClassifier:
                 "   - RULE OF THUMB: If you must borrow words from <ACTIVE_TOPIC> to make the",
                 "     query retrievable \u2192 dependent. If the query already specifies its own",
                 "     subject \u2192 independent.",
-                "",                "   MULTI_GROUP rules (comparisons / relating multiple topics):",
-                "   - A query that COMPARES or RELATES two or more subjects is MULTI_GROUP,",
-                "     even if one of those subjects is referenced by a pronoun that points to",
-                "     the active topic. Comparison WINS over plain dependent.",
-                "     Example (active topic = <ACTIVE_TOPIC>): 'compare it with conductivity'",
-                "       → multi_group. Resolve the pronoun INSIDE the sub_queries, e.g.",
+                "",                "   MULTI_GROUP rules (any request spanning multiple distinct subjects):",
+                "   - A query that targets two or more distinct subjects is MULTI_GROUP — whether",
+                "     it COMPARES them ('compare X and Y') OR simply asks for EACH of them",
+                "     ('give X and Y', 'list X and Y', 'show me X and Y'). multi_group WINS over",
+                "     plain dependent even if one subject is a pronoun pointing to the active topic.",
+                "   - IMPORTANT: multi_group is about DEPENDENCY (how many subjects), NOT about",
+                "     intent. Do NOT assume comparison just because there are two subjects. Choose",
+                "     retrieval_intent SEPARATELY from the ACTION the user wants: give/list/extract",
+                "     → an extraction intent; compare/contrast/vs/difference → comparison; summarize",
+                "     → a summary intent.",
+                "     Example: 'compare it with conductivity' → multi_group + comparison;",
                 "       sub_queries = ['<ACTIVE_TOPIC>', 'conductivity'].",
-                "   - List EVERY subject being compared as its OWN entry in sub_queries.",
-                "     For N-way comparisons ('compare A, B and C') include ALL N items —",
-                "     never collapse or drop any (sub_queries = ['A', 'B', 'C']).",
+                "     Example: 'give X and Y' → multi_group + extraction (NOT comparison).",
+                "   - List EVERY subject as its OWN entry in sub_queries. For N subjects",
+                "     ('give A, B and C') include ALL N items — never collapse or drop any",
+                "     (sub_queries = ['A', 'B', 'C']).",
                 "   - For multi_group you MUST return at least 2 sub_queries. Never return an",
                 "     empty sub_queries list when dependency_type is 'multi_group'.",
-                "",                "2. RETRIEVAL_INTENT: One of [factual, summary, comparison, extraction, analysis, ambiguous]",
+                "",
+                "   COMPOUND REQUESTS — SEGMENTS (split into independent answers):",
+                "   Split a query into 'segments' when it should yield MORE THAN ONE answer that",
+                "   each stands on its own. Each segment is a self-contained sub-request with its",
+                "   OWN intent and (when it clearly targets specific loaded file(s)) its OWN",
+                "   source_files. Two situations call for segments:",
+                "   (a) DIFFERENT OPERATIONS in one query — e.g. it COMPARES some items AND",
+                "       separately SUMMARIZES or EXTRACTS something else: one segment per operation.",
+                "       Example: 'differentiate A and B, and extract the C table' → TWO segments:",
+                "         seg1 {query:'differentiate between A and B', intent:'comparison'},",
+                "         seg2 {query:'extract the C table', intent:'targeted_extraction'}.",
+                "   (b) The SAME per-item operation applied to MULTIPLE DISTINCT SUBJECTS that each",
+                "       deserve their own standalone result — most clearly when the subjects are",
+                "       DIFFERENT DOCUMENTS, so merging them would force unrelated material into one",
+                "       answer: one segment PER subject/file.",
+                "       Example: 'summarize both files' / 'summarize doc1 and doc2' → ONE segment",
+                "         per file, each {query:'summarize <that file>', intent: a summary intent,",
+                "         source_files:['<that file>']}.",
+                "   EXCEPTION — when the operation's RESULT is inherently ABOUT THE RELATIONSHIP",
+                "   between the subjects (the subjects must be weighed together to answer at all),",
+                "   it is ONE combined answer, NOT one segment per subject. So asking how subjects",
+                "   relate to or differ from each other does NOT split (it is a single answer about",
+                "   them together), whereas asking for the SAME standalone result for each subject",
+                "   DOES split (one result per subject).",
+                "   A query that yields just ONE standalone answer has NO segments — return [].",
+                "",                "2. RETRIEVAL_INTENT: One of [factual, targeted_summary, global_summary, comparison, targeted_extraction, global_extraction, analysis, ambiguous]",
             ])
         else:
             # Clarification to a previously-ambiguous query.
@@ -199,25 +230,38 @@ class LLMClassifier:
                 "    together are still not specific enough to retrieve. → classify",
                 "    dependency_type as 'ambiguous' again so we can ask for more detail.",
                 "",
-                "1. RETRIEVAL_INTENT for the resulting query: One of [factual, summary, comparison, extraction, analysis, ambiguous]",
+                "1. RETRIEVAL_INTENT for the resulting query: One of [factual, targeted_summary, global_summary, comparison, targeted_extraction, global_extraction, analysis, ambiguous]",
             ])
         
         context_parts.extend([
             "   - factual: Direct question asking for specific information",
             "     Examples: 'What is X?', 'What are the SI units of X?', 'Define X', 'What does X mean?'",
             "     → Retrieve top_k chunks, give DIRECT CONCISE ANSWER",
-            "   - summary: Asking for overview/synthesis of topic",
-            "     Examples: 'Summarize X', 'Overview of X', 'Explain the concept of X'",
-            "     → Retrieve all chunks, provide COMPREHENSIVE OVERVIEW",
-            "   - comparison: Compare/contrast two or more items",
-            "     Examples: 'Compare X and Y', 'Difference between X and Y'",
+            "   - targeted_summary: Focused overview/synthesis of a specific topic/section",
+            "     Examples: 'Summarize access control section', 'Overview of X controls'",
+            "     → Retrieve relevant subset, provide focused synthesis",
+            "   - global_summary: Whole-document/corpus overview",
+            "     Examples: 'Summarize the whole document', 'Give complete overview of this PDF'",
+            "     → Retrieve document-wide context, provide comprehensive synthesis",
+            "   - comparison: EXPLICITLY compare/contrast two or more items. Requires",
+            "     comparison language (compare, contrast, versus/vs, difference between,",
+            "     which is better/worse). A plain conjunction like 'give X and Y' or",
+            "     'list X and Y' is NOT comparison — classify it by its action verb instead.",
+            "     Examples: 'Compare X and Y', 'Difference between X and Y', 'X vs Y'",
             "     → Retrieve relevant chunks, structured COMPARISON",
-            "   - extraction: Explicitly asking to list/enumerate/show ALL items",
-            "     Examples: 'List all X', 'Enumerate X', 'Give me all X', 'Show every X'",
+            "   - targeted_extraction: Extract a specific table/list/subset",
+            "     Examples: 'Give me the information security controls table', 'Extract X matrix'",
+            "     → Retrieve relevant subset, return exact structured items",
+            "   - global_extraction: Explicitly asking complete document-wide enumeration",
+            "     Examples: 'List all X', 'Enumerate every X in the document', 'Give me complete list of X'",
             "     → Retrieve ALL chunks, COMPREHENSIVE LIST",
-            "   - analysis: Asking WHY/HOW/IMPLICATIONS/RISKS",
-            "     Examples: 'Why does X happen?', 'How does X work?', 'Implications of X'",
-            "     → Retrieve relevant chunks, ANALYTICAL BREAKDOWN",
+            "   - analysis: The user wants the REASONING or WORKING behind something — the",
+            "     steps, causes, or justification that lead to a result — rather than the",
+            "     finished result itself. (Asking to show how a result is reached or why",
+            "     something is so is analysis; asking only for the end artifact — a value,",
+            "     formula, or table — is factual/extraction.)",
+            "     Examples: 'Why does X happen?', 'How does X work?', 'Derive the formula for X'",
+            "     → Retrieve relevant chunks, step-by-step analytical breakdown",
             "",
         ])
         
@@ -252,25 +296,41 @@ class LLMClassifier:
         context_parts.extend([
             "INTENT CLASSIFICATION RULES:",
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-            "RULE 1: FACTUAL vs EXTRACTION vs SUMMARY",
+            "RULE 1: FACTUAL vs TARGETED/GLOBAL EXTRACTION vs TARGETED/GLOBAL SUMMARY",
             "  FACTUAL = Direct specific questions asking for single/focused information:",
             "    Examples: 'What is X?' | 'Define X' | 'What are the SI units of X?' | 'When was X discovered?'",
             "    → Use your judgment: Does the question seek ONE specific thing or ONE focused answer?",
             "",
-            "  EXTRACTION = Comprehensive lists, enumerations, asking for multiple items:",
+            "  TARGETED_EXTRACTION = Specific table/list/subset extraction:",
+            "    Examples: 'information security controls table' | 'extract access control matrix'",
+            "    → Focused structured extraction from relevant subset",
+            "",
+            "  GLOBAL_EXTRACTION = Comprehensive lists, enumerations, asking for all items:",
             "    Examples: 'List all X' | 'List the X' | 'Enumerate X' | 'All the X' | 'All properties of X'",
             "    Examples: 'What are all the physical quantities?' | 'Show everything about X'",
-            "    → Use your judgment: Is the user asking for a COLLECTION or COMPLETE LIST of items?",
+            "    → Use your judgment: Is the user asking for a COMPLETE corpus-wide list?",
             "",
-            "  SUMMARY = Overview, synthesis, explanation of concept/topic:",
-            "    Examples: 'Summarize X' | 'Overview of X' | 'Explain the concept of X' | 'Describe how X works'",
-            "    → Use your judgment: Does the user want a comprehensive OVERVIEW or SYNTHESIS?",
+            "  TARGETED_SUMMARY = Overview/synthesis of a specific topic/section:",
+            "    Examples: 'Summarize section X' | 'Overview of access controls'",
+            "    → Focused synthesis for the requested scope",
             "",
-            "RULE 2: ANALYSIS vs COMPARISON",
-            "  ANALYSIS = Cause/effect/implications (WHY/HOW questions):",
-            "    Examples: 'Why does X happen?' | 'How does X work?' | 'What are the implications of X?'",
-            "  COMPARISON = Contrasting/comparing multiple items:",
+            "  GLOBAL_SUMMARY = Overview/synthesis of the whole document/corpus:",
+            "    Examples: 'Summarize the whole document' | 'Complete overview of this PDF'",
+            "    → Comprehensive synthesis across the entire corpus",
+            "",
+            "RULE 2: ANALYSIS vs COMPARISON vs PLAIN CONJUNCTION",
+            "  ANALYSIS = the user wants the REASONING or WORKING behind a result — the steps,",
+            "    causes, or justification — rather than the finished result itself. Showing HOW",
+            "    a result is reached or WHY something holds is analysis; asking only for the end",
+            "    artifact (a value, formula, or table) is factual/extraction.",
+            "    Examples: 'Why does X happen?' | 'How does X work?' | 'Derive the formula for X'",
+            "  COMPARISON = EXPLICITLY contrasting/comparing items. Needs comparison language",
+            "    (compare, contrast, vs/versus, difference between, which is better):",
             "    Examples: 'Compare X and Y' | 'Difference between X and Y' | 'X vs Y'",
+            "  PLAIN CONJUNCTION (NOT comparison): 'give X and Y' | 'list X and Y' | 'show X and Y'",
+            "    simply asks for BOTH subjects. Keep dependency_type multi_group, but set",
+            "    retrieval_intent from the ACTION (give/list/extract → an extraction intent;",
+            "    summarize → a summary intent). Two subjects alone NEVER implies comparison.",
             "",
             "RULE 3: Identify AMBIGUOUS queries",
             "  Examples of ambiguity: 'both', 'that', 'it', 'those', 'they', 'these' without clear reference",
@@ -335,6 +395,33 @@ class LLMClassifier:
                 "  4. Incomplete comparisons: 'Compare these' without specifying what",
                 "  5. Questions that could be answered from general LLM knowledge but need document context",
                 "",
+                "TYPO TOLERANCE (do NOT treat as ambiguous):",
+                "  - A clear MISSPELLING or typo of an otherwise-recognizable word is NOT ambiguity.",
+                "    Infer the intended word and classify by its MEANING; fix the spelling in",
+                "    standalone_query. Never ask the user to clarify an obvious typo.",
+                "    Examples: 'bublbs' → 'bulbs'; 'elecitrcity' → 'electricity'; 'controlls' → 'controls';",
+                "      'combination of bublbs' → 'combination of bulbs' (clear subject, NOT ambiguous).",
+                "  - A query with two or more clearly-named subjects (e.g. 'A and B') is NOT ambiguous",
+                "    just because ONE word is misspelled — classify it as multi_group and correct the",
+                "    spelling. Only mark ambiguous when the INTENDED meaning is genuinely unrecoverable.",
+                "",
+                "BARE TOPIC / KEYWORD QUERIES (do NOT treat as ambiguous):",
+                "  - A query that is just a topic or noun phrase NAMING A CONCRETE SUBJECT, with",
+                "    no undefined reference, is a RETRIEVAL REQUEST — the user wants that topic",
+                "    from the loaded documents. A missing action verb (no 'list'/'what is'/'explain')",
+                "    does NOT make it ambiguous; treat it like a search box for that subject.",
+                "  - Classify it by what the subject denotes (use judgment, keep the subject in",
+                "    standalone_query):",
+                "      • A subject naming a CATEGORY or SET of items (a plural/collective noun",
+                "        phrase) → an extraction intent: global_extraction when it reads as the",
+                "        document's complete set of that category, else targeted_extraction.",
+                "      • A single specific concept/term → factual (a definition/direct answer) or",
+                "        targeted_summary if it is a broad section/topic.",
+                "  - Ambiguity is about UNDEFINED references, NOT a missing verb. Mark such a",
+                "    bare phrase ambiguous ONLY if the phrase itself is undefined — it contains a",
+                "    pronoun ('it', 'that', 'those') or a dangling 'the value/the unit/the type'",
+                "    of an UNSTATED thing. A phrase that fully names its own subject is resolvable.",
+                "",
                 "CRITICAL RULE:",
                 "AMBIGUOUS happens in exactly two ways:",
                 "  CASE A: NO ACTIVE GROUP exists and the query is general/vague → AMBIGUOUS.",
@@ -350,6 +437,8 @@ class LLMClassifier:
         context_parts.extend([
             "4. STANDALONE_QUERY: Reformulated query for document retrieval",
             "   - Make the query self-contained and clear for the retrieval system",
+            "   - Correct obvious typos/misspellings here (e.g. 'bublbs' → 'bulbs') so retrieval",
+            "     matches the intended terms",
             "   - If CLARIFICATION: Combine the ambiguous query + clarification naturally",
             "   - Examples of clarifications being converted to standalone queries:",
             "     'list all quantities' + 'from the chapter' → 'all physical quantities in the document'",
@@ -372,6 +461,16 @@ class LLMClassifier:
             "     Yes → 'previous_answer'. No / needs more from the source → 'document'.",
             "     When genuinely unsure, choose 'document'.",
             "",
+            "6. SOURCE_FILES: a JSON array pinning retrieval to specific loaded file(s).",
+            "   - Set it ONLY when the query unmistakably targets particular loaded file(s) —",
+            "     by name (e.g. 'summarize electricity.pdf') or by a description that clearly",
+            "     identifies one (e.g. 'the security standard' → an ISO file). Use the EXACT",
+            "     filename(s) from the LOADED DOCUMENTS list. Include every file it targets.",
+            "   - Return [] when the query does NOT single out a file, refers to the corpus as a",
+            "     whole ('the documents', 'everything'), or you are at all unsure — [] searches",
+            "     all files. For a multi_group/compound query, leave per-subject/segment pinning",
+            "     to those fields and keep this [].",
+            "",
             "RESPONSE FORMAT:",
             "Provide JSON response with exactly these fields:",
         ])
@@ -380,12 +479,13 @@ class LLMClassifier:
             context_parts.extend([
                 "{",
                 '  "dependency_type": "independent" OR "dependent" OR "multi_group" OR "ambiguous",',
-                '  "retrieval_intent": "factual" OR "summary" OR "extraction" OR "analysis" OR "comparison" OR "ambiguous",',
+                '  "retrieval_intent": "factual" OR "targeted_summary" OR "global_summary" OR "comparison" OR "targeted_extraction" OR "global_extraction" OR "analysis" OR "ambiguous",',
                 '  "belongs_to_active_group": true or false,',
                 '  "answer_source": "document" OR "previous_answer",',
                 '  "reasoning": "State which OUTCOME (1 CLARIFIES / 2 NEW QUESTION / 3 STILL AMBIGUOUS) and why (1-2 sentences)",',
                 '  "standalone_query": "Query ready for retrieval (combined, or new-message-only, or original if still ambiguous)",',
                 '  "sub_queries": [] or ["sub_query1", "sub_query2", ...],',
+                '  "source_files": [] or ["<exact filename>", ...],',
                 '  "suggested_topic": "Topic name if not belongs_to_active_group"',
                 "}",
             ])
@@ -393,12 +493,14 @@ class LLMClassifier:
             context_parts.extend([
                 "{",
                 '  "dependency_type": "independent" OR "dependent" OR "multi_group" OR "ambiguous",',
-                '  "retrieval_intent": "factual" OR "summary" OR "comparison" OR "extraction" OR "analysis" OR "ambiguous",',
+                '  "retrieval_intent": "factual" OR "targeted_summary" OR "global_summary" OR "comparison" OR "targeted_extraction" OR "global_extraction" OR "analysis" OR "ambiguous",',
                 '  "belongs_to_active_group": true or false,',
                 '  "answer_source": "document" OR "previous_answer",',
                 '  "reasoning": "Brief explanation (1-2 sentences)",',
                 '  "standalone_query": "Self-contained query for retrieval",',
                 '  "sub_queries": [] or ["sub_query1", "sub_query2", ...],',
+                '  "segments": [] or [{"title": "short label", "query": "self-contained sub-request", "intent": "<one intent>", "source_files": ["<exact filename>", ...]}],',
+                '  "source_files": [] or ["<exact filename>", ...],',
                 '  "suggested_topic": "Topic name for new group if not belongs_to_active_group"',
                 "}",
             ])
@@ -461,6 +563,10 @@ class LLMClassifier:
             # Set defaults for optional fields
             if "sub_queries" not in result:
                 result["sub_queries"] = []
+            if "segments" not in result:
+                result["segments"] = []
+            if "source_files" not in result:
+                result["source_files"] = []
             if "suggested_topic" not in result:
                 result["suggested_topic"] = None
             # answer_source defaults to 'document' (safe: always retrieve unless the LLM
@@ -516,12 +622,14 @@ class LLMClassifier:
     def split_multi_group_query(
         self,
         query: str,
-        sub_queries_from_llm: List[str]
+        sub_queries_from_llm: List[str],
+        available_documents: List[str] = None
     ) -> List[Dict[str, str]]:
         """
         Process multi-group query by splitting into sub-queries IN PARALLEL.
         
-        Generates topics for all sub-queries simultaneously using thread pool.
+        Generates topic + intent (+ optional source_file) for all sub-queries
+        simultaneously using a thread pool.
         """
         if not sub_queries_from_llm:
             log.warning("[LLM_CLASSIFIER] ⚠️ Multi-group query but no sub-queries provided")
@@ -529,20 +637,24 @@ class LLMClassifier:
         
         log.info(f"[LLM_CLASSIFIER] Splitting multi-group into {len(sub_queries_from_llm)} sub-queries (PARALLEL)")
         
-        # Generate topics in parallel
+        # Classify topic + retrieval intent per sub-query in parallel. Each sub-query
+        # of a multi-group request is retrieved INDEPENDENTLY, so it gets its OWN
+        # intent and therefore its own per-intent K (see retriever INTENT_RETRIEVAL_CONFIG).
         max_workers = min(len(sub_queries_from_llm), 5)  # Cap at 5 parallel threads
         
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Submit all topic generation tasks
-            log.info(f"[LLM_CLASSIFIER] Submitting {len(sub_queries_from_llm)} topic generation tasks with {max_workers} workers")
+            log.info(f"[LLM_CLASSIFIER] Submitting {len(sub_queries_from_llm)} topic+intent tasks with {max_workers} workers")
             
             future_to_index = {}
             for i, sub_q in enumerate(sub_queries_from_llm):
-                future = executor.submit(self._get_topic_for_subquery, sub_q, i + 1, len(sub_queries_from_llm))
+                future = executor.submit(
+                    self._get_topic_and_intent_for_subquery,
+                    sub_q, i + 1, len(sub_queries_from_llm), available_documents
+                )
                 future_to_index[future] = i
             
             # Collect results as they complete
-            topics_by_index = {}
+            meta_by_index = {}
             completed = 0
             
             for future in as_completed(future_to_index):
@@ -550,45 +662,126 @@ class LLMClassifier:
                 completed += 1
                 
                 try:
-                    topic = future.result()
-                    topics_by_index[index] = topic
-                    log.info(f"[LLM_CLASSIFIER] Generated topic {completed}/{len(sub_queries_from_llm)}: {topic[:50]}")
+                    meta = future.result()
+                    meta_by_index[index] = meta
+                    log.info(f"[LLM_CLASSIFIER] Sub-query {completed}/{len(sub_queries_from_llm)} → topic='{meta['topic'][:30]}' intent='{meta['intent']}'")
                 except Exception as e:
-                    log.warning(f"[LLM_CLASSIFIER] ⚠️ Failed to get topic for sub-query {index + 1}: {e}")
-                    topics_by_index[index] = "General"
+                    log.warning(f"[LLM_CLASSIFIER] ⚠️ Failed topic+intent for sub-query {index + 1}: {e}")
+                    meta_by_index[index] = {"topic": "General", "intent": "factual"}
             
             # Build result list in original order
             sub_query_list = []
             for i, sub_q in enumerate(sub_queries_from_llm):
-                sub_query_list.append({
+                meta = meta_by_index.get(i, {"topic": "General", "intent": "factual"})
+                entry = {
                     "query": sub_q,
-                    "topic": topics_by_index.get(i, "General")
-                })
+                    "topic": meta["topic"],
+                    "intent": meta["intent"],
+                }
+                if meta.get("source_files"):
+                    entry["filenames"] = meta["source_files"]
+                sub_query_list.append(entry)
         
-        log.info(f"[LLM_CLASSIFIER] ✅ Generated topics for all {len(sub_queries_from_llm)} sub-queries in parallel")
+        log.info(f"[LLM_CLASSIFIER] ✅ Generated topic+intent for all {len(sub_queries_from_llm)} sub-queries in parallel")
         return sub_query_list
     
-    def _get_topic_for_subquery(self, sub_query: str, index: int, total: int) -> str:
-        """Generate a topic/category for a sub-query in parallel."""
-        topic_prompt = f"""
-        Given this sub-query, suggest a brief topic/category (1-3 words):
-        "{sub_query}"
-        
-        Respond with ONLY the topic name, nothing else.
+    def _get_topic_and_intent_for_subquery(self, sub_query: str, index: int, total: int,
+                                           available_documents: List[str] = None) -> Dict[str, str]:
+        """Classify a single sub-query's topic + retrieval intent (parallel worker).
+
+        Each sub-query of a multi-group request is an independent retrieval, so it is
+        classified on its own and uses that intent's predefined K in the retriever.
+        When the loaded file list is provided, the LLM ALSO picks the sub-query's
+        source_files SEMANTICALLY (e.g. 'the security standard' → an ISO file). It may
+        return several files when the sub-query refers to several. Picks are validated
+        against the real file list and used to pin retrieval to those file(s).
         """
-        
+        valid_intents = {
+            "factual", "targeted_summary", "global_summary",
+            "targeted_extraction", "global_extraction", "analysis",
+        }
+
+        docs_block = ""
+        json_fmt = '{"topic": "...", "intent": "..."}'
+        if available_documents:
+            listed = "\n".join(f"  - {d}" for d in available_documents[:20])
+            docs_block = (
+                "\n3. source_files: a JSON array of the EXACT filenames (from the loaded "
+                "list below) that this sub-query SPECIFICALLY refers to. ONLY include a "
+                "file when the sub-query points to it unmistakably — by its name, or by a "
+                "description that clearly identifies it (e.g. 'the security standard' → an "
+                "ISO file; 'the circuits doc' → an electricity file). Include EVERY file it "
+                "specifically refers to (one, several, or all). If the sub-query does NOT "
+                "single out any particular file, or you are at all unsure, return [] so it "
+                "searches everything. Do NOT guess.\n"
+                "LOADED FILES:\n" + listed + "\n"
+            )
+            json_fmt = '{"topic": "...", "intent": "...", "source_files": ["<exact filename>", ...]}'
+
+        prompt = (
+            "For this sub-query from a larger multi-part request, return:\n"
+            "1. topic: a brief category (1-3 words)\n"
+            "2. intent: ONE of [factual, targeted_summary, global_summary, "
+            "targeted_extraction, global_extraction, analysis]"
+            + docs_block + "\n\n"
+            f'Sub-query: "{sub_query}"\n\n'
+            "INTENT GUIDANCE — pick the NARROWEST intent that fits. Reserve the two GLOBAL\n"
+            "(whole-document) intents for requests that EXPLICITLY ask for everything:\n"
+            "  - global_extraction: ONLY when the sub-query explicitly demands a COMPLETE,\n"
+            "    document-wide enumeration using words like 'all', 'every', 'complete list',\n"
+            "    'list all X', 'enumerate X'. A bare topic name is NOT global.\n"
+            "  - global_summary: ONLY for an explicit whole-document overview\n"
+            "    ('summarize the whole document', 'overview of the entire PDF').\n"
+            "  - targeted_extraction: a specific table/list/subset or a NAMED topic/section\n"
+            "    (e.g. 'combination of bulbs', 'access control table', 'the controls table').\n"
+            "    This is the DEFAULT for a specific subject that wants structured items.\n"
+            "  - targeted_summary: a focused overview of ONE specific topic/section.\n"
+            "  - factual: a single specific fact/definition ('what is X', 'SI unit of X').\n"
+            "  - analysis: the sub-query wants the REASONING or WORKING behind a result — the\n"
+            "    steps, causes, or justification — not just the finished artifact. Showing how a\n"
+            "    result is reached or why it holds is analysis; asking only for the end value/\n"
+            "    formula/table is factual/extraction.\n"
+            "RULE: If the sub-query is just a topic NAME with no 'all/every/complete' wording,\n"
+            "it is TARGETED (or factual), NEVER global. Example: 'combination of bulbs' →\n"
+            "targeted_extraction (a specific section), NOT global_extraction.\n"
+            "Respond with ONLY JSON: " + json_fmt
+        )
         try:
-            log.info(f"[LLM_CLASSIFIER] [PARALLEL] Generating topic for sub-query {index}/{total}")
-            
-            topic_response = self.client.chat.completions.create(
+            log.info(f"[LLM_CLASSIFIER] [PARALLEL] Classifying sub-query {index}/{total}")
+            raw = self.client.chat.completions.create(
                 model=self.model,
-                messages=[{"role": "user", "content": topic_prompt}],
+                messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
             ).choices[0].message.content.strip()
-            
-            log.info(f"[LLM_CLASSIFIER] [PARALLEL] ✅ Topic generated for sub-query {index}: {topic_response[:50]}")
-            return topic_response
-            
+
+            if raw.startswith("```"):
+                raw = raw.split("```")[1]
+                if raw.startswith("json"):
+                    raw = raw[4:]
+
+            data = json.loads(raw)
+            topic = str(data.get("topic", "General")).strip() or "General"
+            intent = str(data.get("intent", "factual")).strip().lower()
+            if intent not in valid_intents:
+                intent = "factual"
+
+            result = {"topic": topic, "intent": intent}
+            if available_documents:
+                # Validate the LLM's choices against the REAL file list (exact match);
+                # unknown/hallucinated names are dropped. Accept a list or a lone string.
+                valid_files = {str(d).strip() for d in available_documents}
+                sf_raw = data.get("source_files", [])
+                if isinstance(sf_raw, str):
+                    sf_raw = [sf_raw]
+                source_files = [
+                    s for s in (str(x).strip() for x in sf_raw) if s in valid_files
+                ]
+                source_files = list(dict.fromkeys(source_files))  # de-dup, keep order
+                result["source_files"] = source_files
+                log.info(f"[LLM_CLASSIFIER] [PARALLEL] ✅ Sub-query {index}: topic='{topic[:30]}' intent='{intent}' source_files={source_files}")
+            else:
+                log.info(f"[LLM_CLASSIFIER] [PARALLEL] ✅ Sub-query {index}: topic='{topic[:30]}' intent='{intent}'")
+            return result
         except Exception as e:
-            log.warning(f"[LLM_CLASSIFIER] [PARALLEL] ⚠️ Failed to get topic for sub-query {index}: {e}")
-            return "General"
+            log.warning(f"[LLM_CLASSIFIER] [PARALLEL] ⚠️ Failed sub-query {index}: {e}")
+            return {"topic": "General", "intent": "factual"}

@@ -1,5 +1,8 @@
 from typing import List, Dict, Any  
 from langchain_core.documents import Document
+from backend.utils.logger import get_logger
+
+log = get_logger("sliding_window")
 
 
 class SlidingWindowChunker:  
@@ -89,7 +92,7 @@ class SlidingWindowChunker:
         doc_result["chunks"] = chunks  
         doc_result["total_chunks"] = len(chunks)
 
-        print(  
+        log.info(  
             f"[SLIDING CHUNKED] {doc_result.get('filename')} | "  
             f"pages={len(pages)} -> chunks={len(chunks)} | "  
             f"chunk_size={size} | overlap={overlap}"  

@@ -1,5 +1,8 @@
 from typing import List, Dict, Any  
 from langchain_core.documents import Document
+from backend.utils.logger import get_logger
+
+log = get_logger("fixed_chunker")
 
 
 class FixedChunker:  
@@ -67,7 +70,7 @@ class FixedChunker:
         doc_result["chunks"] = chunks  
         doc_result["total_chunks"] = len(chunks)
 
-        print(  
+        log.info(  
             f"[FIXED CHUNKED] {doc_result.get('filename')} | "  
             f"pages={len(pages)} -> chunks={len(chunks)} | chunk_size={size}"  
         )  

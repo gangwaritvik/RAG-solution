@@ -1100,6 +1100,21 @@ MAIN — CHAT
     text-shadow: 0 0 40px rgba(255,255,255,0.03);
 }
 
+/* While streaming, show raw tokens with natural line breaks and a blinking caret. */
+.chat-ai-bubble.chat-ai-streaming {
+    white-space: pre-wrap;
+}
+.chat-ai-bubble.chat-ai-streaming::after {
+    content: '▋';
+    margin-left: 1px;
+    color: rgba(0,255,170,0.7);
+    animation: streamCaret 1s steps(2) infinite;
+}
+@keyframes streamCaret {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0; }
+}
+
 /* Source chips */
 .chat-sources {
     margin-top: 8px;
@@ -1115,12 +1130,30 @@ MAIN — CHAT
     display: flex;
     align-items: center;
     gap: 6px;
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.2s ease;
 }
 
+.chat-sources-label:hover {
+    color: rgba(0,255,170,0.8);
+}
+
+.src-arrow {
+    font-size: 8px;
+    color: rgba(0,255,170,0.5);
+    transition: color 0.2s ease;
+}
+
+/* Collapsed by default; expands when the dropdown is toggled open. */
 .sources-chips {
-    display: flex;
+    display: none;
     flex-wrap: wrap;
     gap: 6px;
+}
+
+.sources-chips.open {
+    display: flex;
 }
 
 .source-chip {
@@ -1924,36 +1957,11 @@ ANSWER FORMATTING
     margin: 8px 0;
 }
 
-/* Top-K MAX button */
+/* Top-K controls (value + enable switch) */
 .qs-topk-controls {
     display: flex;
     align-items: center;
-    gap: 6px;
-}
-
-.btn-topk-max {
-    font-size: 8px;
-    font-weight: 800;
-    letter-spacing: 1px;
-    padding: 2px 7px;
-    border-radius: 4px;
-    border: 1px solid rgba(255,255,255,0.15);
-    background: transparent;
-    color: rgba(255,255,255,0.3);
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.btn-topk-max:hover {
-    border-color: rgba(0,255,170,0.3);
-    color: rgba(0,255,170,0.6);
-}
-
-.btn-topk-max.active {
-    background: rgba(0,255,170,0.12);
-    border-color: rgba(0,255,170,0.4);
-    color: rgba(0,255,170,0.9);
-    box-shadow: 0 0 10px rgba(0,255,170,0.15);
+    gap: 8px;
 }
 
 
@@ -2017,16 +2025,9 @@ ANSWER FORMATTING
     box-shadow: 0 0 8px rgba(0,255,170,0.5);
 }
 
-/* Dim the controls when manual settings are disabled */
-.qs-body.qs-disabled .qs-item {
+/* Dim only the Top-K slider + value when manual Top-K is disabled.
+   The enable switch and hint stay fully interactive so it can be turned back on. */
+.qs-item.qs-topk-disabled .qs-slider-wrap,
+.qs-item.qs-topk-disabled .qs-value {
     opacity: 0.4;
-    pointer-events: none;
-}
-
-.qs-disabled-note {
-    font-size: 8px;
-    color: rgba(0,255,170,0.4);
-    line-height: 1.5;
-    margin-bottom: 8px;
-    letter-spacing: 0.3px;
 }

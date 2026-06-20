@@ -1,0 +1,199 @@
+2026-06-18 12:43:42 | INFO     | document_loader      | DocumentLoader initialized — upload_dir: C:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\uploads
+2026-06-18 12:43:42 | INFO     | document_loader      | Supported formats: ['.pdf', '.docx']
+2026-06-18 12:43:42 | INFO     | chunker              | Chunker initialized — chunk_size: 1000 | overlap: 300
+2026-06-18 12:43:42 | INFO     | embedder             | Embedder initializing — endpoint: https://az-oai-collection.openai.azure.com/ | model: text-embedding-3-small
+2026-06-18 12:43:43 | INFO     | embedder             | Embedder ✅ initialized | max_workers: 10
+2026-06-18 12:43:43 | INFO     | vector_store         | VectorStore initializing — persist_dir: C:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\chroma_db
+2026-06-18 12:43:43 | INFO     | vector_store         | VectorStore ✅ Collection loaded — 0 existing vectors
+2026-06-18 12:43:43 | INFO     | memory_manager       | [MEMORY_MGR] Initializing conversation memory manager
+2026-06-18 12:43:43 | INFO     | memory_store         | [MEMORY_STORE] Initializing with Chroma DB at C:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\chroma_db
+2026-06-18 12:43:43 | INFO     | memory_store         | [MEMORY_STORE] ✅ Collections loaded — metadata: 0, summaries: 0
+2026-06-18 12:43:43 | INFO     | memory_store         | [MEMORY_STORE] ✅ Retrieved 0 groups
+2026-06-18 12:43:43 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Loaded 0 groups from storage
+2026-06-18 12:43:43 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Manager initialized
+2026-06-18 12:43:43 | INFO     | main                 | [STARTUP] Conversation memory manager initialized
+2026-06-18 12:43:44 | INFO     | context_resolver     | [RESOLVER] ✅ LLM classifier initialized
+2026-06-18 12:43:44 | INFO     | multi_group_processor | [MULTI_GROUP_PROCESSOR] ✅ Initialized with max_workers=5
+2026-06-18 12:43:44 | INFO     | background_summarizer | [BG_SUMMARIZER] Initialized with 3 workers
+2026-06-18 12:43:44 | INFO     | main                 | [STARTUP] Vector store ready — session started
+2026-06-18 12:43:44 | INFO     | main                 | [STARTUP] Conversation memory manager initialized
+2026-06-18 12:43:44 | DEBUG    | asyncio              | Using proactor: IocpProactor
+2026-06-18 12:44:50 | INFO     | main                 | [INGEST_BG] Starting background processing for 1 file(s)
+2026-06-18 12:44:50 | INFO     | main                 | [CHUNKER] Selected: RecursiveCharacterTextSplitter (default)
+2026-06-18 12:44:50 | INFO     | main                 | [INGEST_BG] Processing: _test_electricity.pdf (2156 bytes)
+2026-06-18 12:44:50 | INFO     | main                 | [INGEST_BG] STEP 1 — Loading _test_electricity.pdf
+2026-06-18 12:44:50 | INFO     | document_loader      | [LOAD] Processing 1 file(s)
+2026-06-18 12:44:50 | INFO     | document_loader      | [SAVE] _test_electricity.pdf → C:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\uploads\f704e4b48886442b8d3f9717a169a0fd.pdf (2156 bytes)
+2026-06-18 12:44:50 | INFO     | document_loader      | [LOAD] Using PDFLoader for _test_electricity.pdf
+2026-06-18 12:44:50 | INFO     | pdf_loader           | [LOAD PDF] _test_electricity.pdf — using PyMuPDF (simple text extraction)
+2026-06-18 12:44:50 | INFO     | pdf_loader           | [LOAD PDF] 3 pages found
+2026-06-18 12:44:50 | INFO     | pdf_loader           | [LOAD PDF] ✅ _test_electricity.pdf — 3 non-empty pages extracted
+2026-06-18 12:44:50 | INFO     | main                 | [INGEST_BG] STEP 2 — Chunking _test_electricity.pdf (mode: recursive)
+2026-06-18 12:44:50 | INFO     | chunker              | [CHUNK] Processing 1 document(s)
+2026-06-18 12:44:50 | INFO     | chunker              | [CHUNK] Starting — _test_electricity.pdf | 3 pages
+2026-06-18 12:44:50 | DEBUG    | chunker              | [CHUNK] Split complete — 3 raw chunks
+2026-06-18 12:44:50 | INFO     | chunker              | [CHUNK] ✅ _test_electricity.pdf — 3 pages → 3 chunks
+2026-06-18 12:44:50 | INFO     | main                 | [INGEST_BG] STEP 2.5 — Created 3 chunks from _test_electricity.pdf
+2026-06-18 12:44:50 | DEBUG    | main                 | [INGEST_BG]   Chunk 1/3: Electricity Basics Electric current is the rate of flow of electric charge through a conductor. The ...
+2026-06-18 12:44:50 | DEBUG    | main                 | [INGEST_BG]   Chunk 2/3: Resistance and Resistivity Resistance R = rho * L / A, where rho is resistivity, L is length, and A ...
+2026-06-18 12:44:50 | DEBUG    | main                 | [INGEST_BG]   Chunk 3/3: Power and Energy Electric power P = V I = I^2 R = V^2 / R. The SI unit of power is the watt. One kil...
+2026-06-18 12:44:50 | INFO     | main                 | [INGEST_BG] STEP 3 — Embedding 3 chunks from _test_electricity.pdf (batch_size: 500)
+2026-06-18 12:44:50 | INFO     | embedder             | [EMBED] Embedding 3 texts in 1 batch(es) | workers: 10
+2026-06-18 12:44:50 | DEBUG    | embedder             | [EMBED] Batch 1 — 3 texts (thread started)
+2026-06-18 12:44:50 | INFO     | embedder             | [EMBED] 📤 Batch 1 — Calling Azure OpenAI API for 3 chunks...
+2026-06-18 12:44:53 | INFO     | embedder             | [EMBED] ✅ Batch 1 — 3 texts embedded | dim: 1536 | Total: 3 chunks processed
+2026-06-18 12:44:53 | INFO     | main                 | [INGEST_BG] ✅ Embedded 3 vectors
+2026-06-18 12:44:53 | INFO     | main                 | [INGEST_BG] STEP 4 — Storing 3 vectors in ChromaDB
+2026-06-18 12:44:53 | INFO     | vector_store         | [STORE] Adding 3 vectors
+2026-06-18 12:44:53 | INFO     | vector_store         | [STORE] ✅ 3 vectors added — total now: 3
+2026-06-18 12:44:53 | INFO     | main                 | [INGEST_BG] ✅ _test_electricity.pdf — ingested successfully
+2026-06-18 12:44:53 | INFO     | main                 | [INGEST_BG] ✅ Complete — 1 doc(s) | 3 total vectors
+2026-06-18 12:45:14 | INFO     | app                  | [QUERY] ▶ 'What is the SI unit of electric current?' | top_k=5 | temp=0.2 | override=None | retrieve_all=False
+2026-06-18 12:45:14 | INFO     | app                  | [QUERY] STEP 1 — Resolving query context
+2026-06-18 12:45:14 | INFO     | context_resolver     | [RESOLVER] Processing query: What is the SI unit of electric current?
+2026-06-18 12:45:14 | INFO     | context_resolver     | [RESOLVER] ℹ️ No active_group_id provided (None)
+2026-06-18 12:45:14 | INFO     | context_resolver     | [RESOLVER] Using LLM classification
+2026-06-18 12:45:14 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Classifying: What is the SI unit of electric current?
+2026-06-18 12:45:16 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Parsed response: independent | factual
+2026-06-18 12:45:16 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Standalone query: What is the SI unit of electric current?
+2026-06-18 12:45:16 | INFO     | llm_classifier       | [LLM_CLASSIFIER] ✅ Classified as:
+2026-06-18 12:45:16 | INFO     | llm_classifier       |   - dependency_type: independent
+2026-06-18 12:45:16 | INFO     | llm_classifier       |   - retrieval_intent: factual
+2026-06-18 12:45:16 | INFO     | llm_classifier       |   - answer_source: document
+2026-06-18 12:45:16 | INFO     | llm_classifier       |   - standalone_query: What is the SI unit of electric current?
+2026-06-18 12:45:16 | INFO     | llm_classifier       |   - reasoning: The query is specific and self-contained, asking directly for the SI unit of electric current withou
+2026-06-18 12:45:16 | INFO     | context_resolver     | [RESOLVER] LLM: independent | factual | belongs=False | answer_source=document
+2026-06-18 12:45:16 | INFO     | context_resolver     | [RESOLVER] Final standalone query: What is the SI unit of electric current?
+2026-06-18 12:45:16 | INFO     | context_resolver     | [RESOLVER] Will create new group: SI unit of electric current
+2026-06-18 12:45:16 | INFO     | embedder             | [EMBED] Embedding 1 texts in 1 batch(es) | workers: 10
+2026-06-18 12:45:16 | DEBUG    | embedder             | [EMBED] Batch 1 — 1 texts (thread started)
+2026-06-18 12:45:16 | INFO     | embedder             | [EMBED] 📤 Batch 1 — Calling Azure OpenAI API for 1 chunks...
+2026-06-18 12:45:17 | INFO     | embedder             | [EMBED] ✅ Batch 1 — 1 texts embedded | dim: 1536 | Total: 1 chunks processed
+2026-06-18 12:45:17 | WARNING  | memory_store         | [MEMORY_STORE] No group summaries indexed yet
+2026-06-18 12:45:17 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Found 0 relevant groups
+2026-06-18 12:45:17 | INFO     | context_resolver     | [RESOLVER] Found 0 groups above threshold 0.3
+2026-06-18 12:45:17 | INFO     | context_resolver     | [RESOLVER] Found 0 relevant groups
+2026-06-18 12:45:17 | INFO     | context_resolver     | [RESOLVER] INDEPENDENT query — creating NEW group (new topic)
+2026-06-18 12:45:18 | INFO     | memory_store         | [MEMORY_STORE] ✅ Created group: group_7f61ee43
+2026-06-18 12:45:18 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Created group group_7f61ee43: SI unit of electric current
+2026-06-18 12:45:18 | INFO     | context_resolver     | [RESOLVER] ✅ Created new topic group group_7f61ee43: SI unit of electric current
+2026-06-18 12:45:18 | INFO     | context_resolver     | [RESOLVER] ✅ Context resolution complete
+2026-06-18 12:45:18 | INFO     | app                  | [QUERY] Standalone query: What is the SI unit of electric current?
+2026-06-18 12:45:18 | INFO     | app                  | [QUERY] STEP 2 — Retrieving relevant chunks
+2026-06-18 12:45:18 | INFO     | retriever            | [RETRIEVER] Query: 'What is the SI unit of electric current?' | top_k: 5 | get_all_relevant: False | intent: factual | top_k_override: None | retrieve_all: False
+2026-06-18 12:45:18 | INFO     | embedder             | [EMBED] Embedding query: 'What is the SI unit of electric current?'
+2026-06-18 12:45:18 | INFO     | embedder             | [EMBED] ✅ Query embedded — dim: 1536
+2026-06-18 12:45:18 | INFO     | retriever            | [RETRIEVER] Intent 'factual' → mode=top_k | top_k=5 | chunk_threshold=0.2
+2026-06-18 12:45:18 | INFO     | vector_store         | [STORE] Searching top-3 — total vectors: 3
+2026-06-18 12:45:18 | INFO     | vector_store         | [STORE] ✅ 3 hits returned | top score: 0.6533
+2026-06-18 12:45:18 | INFO     | retriever            | [RETRIEVER] Total vectors fetched: 3
+2026-06-18 12:45:18 | INFO     | retriever            | [RETRIEVER] Doc score — _test_electricity.pdf: 0.481
+2026-06-18 12:45:18 | INFO     | retriever            | [RETRIEVER] ✅ RELEVANT — _test_electricity.pdf (score: 0.481)
+2026-06-18 12:45:18 | INFO     | retriever            | [RETRIEVER] TOP_K — _test_electricity.pdf → 3 chunks (top 5, threshold 0.2)
+2026-06-18 12:45:18 | INFO     | retriever            | [RETRIEVER] Total returned: 3
+2026-06-18 12:45:18 | INFO     | app                  | [QUERY] Retrieved 3 chunks
+2026-06-18 12:45:18 | INFO     | app                  | [QUERY] STEP 3 — Generating answer with memory context
+2026-06-18 12:45:18 | INFO     | generator            | [GENERATOR] Dynamic context strategy: turn_count=0
+2026-06-18 12:45:20 | INFO     | generator            | [GENERATOR] ✅ Answer generated with memory summary
+2026-06-18 12:45:20 | INFO     | app                  | [QUERY] ✅ Answer generated successfully
+2026-06-18 12:45:20 | INFO     | app                  | [QUERY] STEP 4 — Storing turn in conversation memory
+2026-06-18 12:45:20 | INFO     | memory_store         | [MEMORY_STORE] ✅ Updated group: group_7f61ee43
+2026-06-18 12:45:20 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Added turn turn_abf6f52d to group group_7f61ee43
+2026-06-18 12:45:20 | INFO     | app                  | [QUERY] ✅ Turn saved to group group_7f61ee43
+2026-06-18 12:45:50 | INFO     | app                  | [QUERY/STREAM] ▶ 'Explain Ohms law and the electric power formulas' | override=None | retrieve_all=False
+2026-06-18 12:45:50 | INFO     | context_resolver     | [RESOLVER] Processing query: Explain Ohms law and the electric power formulas
+2026-06-18 12:45:50 | INFO     | context_resolver     | [RESOLVER] ℹ️ No active_group_id provided (None)
+2026-06-18 12:45:50 | INFO     | context_resolver     | [RESOLVER] Using LLM classification
+2026-06-18 12:45:50 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Classifying: Explain Ohms law and the electric power formulas
+2026-06-18 12:45:54 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Parsed response: independent | summary
+2026-06-18 12:45:54 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Standalone query: Explain Ohm's law and the electric power formulas
+2026-06-18 12:45:54 | INFO     | llm_classifier       | [LLM_CLASSIFIER] ✅ Classified as:
+2026-06-18 12:45:54 | INFO     | llm_classifier       |   - dependency_type: independent
+2026-06-18 12:45:54 | INFO     | llm_classifier       |   - retrieval_intent: summary
+2026-06-18 12:45:54 | INFO     | llm_classifier       |   - answer_source: document
+2026-06-18 12:45:54 | INFO     | llm_classifier       |   - standalone_query: Explain Ohm's law and the electric power formulas
+2026-06-18 12:45:54 | INFO     | llm_classifier       |   - reasoning: The query is self-contained, clearly asks for an explanation (overview) of Ohm's law and electric po
+2026-06-18 12:45:54 | INFO     | context_resolver     | [RESOLVER] LLM: independent | summary | belongs=False | answer_source=document
+2026-06-18 12:45:54 | INFO     | context_resolver     | [RESOLVER] Final standalone query: Explain Ohm's law and the electric power formulas
+2026-06-18 12:45:54 | INFO     | context_resolver     | [RESOLVER] Will create new group: Ohm's law and electric power formulas
+2026-06-18 12:45:54 | INFO     | embedder             | [EMBED] Embedding 1 texts in 1 batch(es) | workers: 10
+2026-06-18 12:45:54 | DEBUG    | embedder             | [EMBED] Batch 1 — 1 texts (thread started)
+2026-06-18 12:45:54 | INFO     | embedder             | [EMBED] 📤 Batch 1 — Calling Azure OpenAI API for 1 chunks...
+2026-06-18 12:45:55 | INFO     | embedder             | [EMBED] ✅ Batch 1 — 1 texts embedded | dim: 1536 | Total: 1 chunks processed
+2026-06-18 12:45:55 | WARNING  | memory_store         | [MEMORY_STORE] No group summaries indexed yet
+2026-06-18 12:45:55 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Found 0 relevant groups
+2026-06-18 12:45:55 | INFO     | context_resolver     | [RESOLVER] Found 0 groups above threshold 0.3
+2026-06-18 12:45:55 | INFO     | context_resolver     | [RESOLVER] Found 0 relevant groups
+2026-06-18 12:45:55 | INFO     | context_resolver     | [RESOLVER] INDEPENDENT query — creating NEW group (new topic)
+2026-06-18 12:45:55 | INFO     | memory_store         | [MEMORY_STORE] ✅ Created group: group_1372269d
+2026-06-18 12:45:55 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Created group group_1372269d: Ohm's law and electric power formulas
+2026-06-18 12:45:55 | INFO     | context_resolver     | [RESOLVER] ✅ Created new topic group group_1372269d: Ohm's law and electric power formulas
+2026-06-18 12:45:55 | INFO     | context_resolver     | [RESOLVER] ✅ Context resolution complete
+2026-06-18 12:45:55 | INFO     | retriever            | [RETRIEVER] Query: 'Explain Ohm's law and the electric power formulas' | top_k: 5 | get_all_relevant: True | intent: summary | top_k_override: None | retrieve_all: False
+2026-06-18 12:45:55 | INFO     | embedder             | [EMBED] Embedding query: 'Explain Ohm's law and the electric power formulas'
+2026-06-18 12:45:55 | INFO     | embedder             | [EMBED] ✅ Query embedded — dim: 1536
+2026-06-18 12:45:55 | INFO     | retriever            | [RETRIEVER] Intent 'summary' → mode=comprehensive | top_k=15 | chunk_threshold=0.1
+2026-06-18 12:45:55 | INFO     | vector_store         | [STORE] Searching top-3 — total vectors: 3
+2026-06-18 12:45:55 | INFO     | vector_store         | [STORE] ✅ 3 hits returned | top score: 0.5216
+2026-06-18 12:45:55 | INFO     | retriever            | [RETRIEVER] Total vectors fetched: 3
+2026-06-18 12:45:55 | INFO     | retriever            | [RETRIEVER] Doc score — _test_electricity.pdf: 0.455
+2026-06-18 12:45:55 | INFO     | retriever            | [RETRIEVER] ✅ RELEVANT — _test_electricity.pdf (score: 0.455)
+2026-06-18 12:45:55 | INFO     | retriever            | [RETRIEVER] COMPREHENSIVE — _test_electricity.pdf → 3 chunks (threshold 0.1, cap 15)
+2026-06-18 12:45:55 | INFO     | retriever            | [RETRIEVER] Total returned: 3
+2026-06-18 12:45:59 | INFO     | generator            | [GENERATOR] ✅ Streamed answer generated with memory summary
+2026-06-18 12:46:15 | INFO     | app                  | [QUERY/STREAM] ▶ 'Explain Ohms law and the electric power formulas' | override=None | retrieve_all=False
+2026-06-18 12:46:15 | INFO     | context_resolver     | [RESOLVER] Processing query: Explain Ohms law and the electric power formulas
+2026-06-18 12:46:15 | INFO     | context_resolver     | [RESOLVER] ℹ️ No active_group_id provided (None)
+2026-06-18 12:46:15 | INFO     | context_resolver     | [RESOLVER] Using LLM classification
+2026-06-18 12:46:15 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Classifying: Explain Ohms law and the electric power formulas
+2026-06-18 12:46:18 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Parsed response: independent | summary
+2026-06-18 12:46:18 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Standalone query: Explain Ohm's law and the electric power formulas
+2026-06-18 12:46:18 | INFO     | llm_classifier       | [LLM_CLASSIFIER] ✅ Classified as:
+2026-06-18 12:46:18 | INFO     | llm_classifier       |   - dependency_type: independent
+2026-06-18 12:46:18 | INFO     | llm_classifier       |   - retrieval_intent: summary
+2026-06-18 12:46:18 | INFO     | llm_classifier       |   - answer_source: document
+2026-06-18 12:46:18 | INFO     | llm_classifier       |   - standalone_query: Explain Ohm's law and the electric power formulas
+2026-06-18 12:46:18 | INFO     | llm_classifier       |   - reasoning: The query is self-contained, specifically asking for an explanation (overview) of Ohm's law and elec
+2026-06-18 12:46:18 | INFO     | context_resolver     | [RESOLVER] LLM: independent | summary | belongs=False | answer_source=document
+2026-06-18 12:46:18 | INFO     | context_resolver     | [RESOLVER] Final standalone query: Explain Ohm's law and the electric power formulas
+2026-06-18 12:46:18 | INFO     | context_resolver     | [RESOLVER] Will create new group: Ohm's law and electric power formulas
+2026-06-18 12:46:18 | INFO     | embedder             | [EMBED] Embedding 1 texts in 1 batch(es) | workers: 10
+2026-06-18 12:46:18 | DEBUG    | embedder             | [EMBED] Batch 1 — 1 texts (thread started)
+2026-06-18 12:46:18 | INFO     | embedder             | [EMBED] 📤 Batch 1 — Calling Azure OpenAI API for 1 chunks...
+2026-06-18 12:46:20 | INFO     | embedder             | [EMBED] ✅ Batch 1 — 1 texts embedded | dim: 1536 | Total: 1 chunks processed
+2026-06-18 12:46:20 | WARNING  | memory_store         | [MEMORY_STORE] No group summaries indexed yet
+2026-06-18 12:46:20 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Found 0 relevant groups
+2026-06-18 12:46:20 | INFO     | context_resolver     | [RESOLVER] Found 0 groups above threshold 0.3
+2026-06-18 12:46:20 | INFO     | context_resolver     | [RESOLVER] Found 0 relevant groups
+2026-06-18 12:46:20 | INFO     | context_resolver     | [RESOLVER] INDEPENDENT query — creating NEW group (new topic)
+2026-06-18 12:46:20 | INFO     | memory_store         | [MEMORY_STORE] ✅ Created group: group_e30a6441
+2026-06-18 12:46:20 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Created group group_e30a6441: Ohm's law and electric power formulas
+2026-06-18 12:46:20 | INFO     | context_resolver     | [RESOLVER] ✅ Created new topic group group_e30a6441: Ohm's law and electric power formulas
+2026-06-18 12:46:20 | INFO     | context_resolver     | [RESOLVER] ✅ Context resolution complete
+2026-06-18 12:46:20 | INFO     | retriever            | [RETRIEVER] Query: 'Explain Ohm's law and the electric power formulas' | top_k: 5 | get_all_relevant: True | intent: summary | top_k_override: None | retrieve_all: False
+2026-06-18 12:46:20 | INFO     | embedder             | [EMBED] Embedding query: 'Explain Ohm's law and the electric power formulas'
+2026-06-18 12:46:20 | INFO     | embedder             | [EMBED] ✅ Query embedded — dim: 1536
+2026-06-18 12:46:20 | INFO     | retriever            | [RETRIEVER] Intent 'summary' → mode=comprehensive | top_k=15 | chunk_threshold=0.1
+2026-06-18 12:46:20 | INFO     | vector_store         | [STORE] Searching top-3 — total vectors: 3
+2026-06-18 12:46:20 | INFO     | vector_store         | [STORE] ✅ 3 hits returned | top score: 0.5216
+2026-06-18 12:46:20 | INFO     | retriever            | [RETRIEVER] Total vectors fetched: 3
+2026-06-18 12:46:20 | INFO     | retriever            | [RETRIEVER] Doc score — _test_electricity.pdf: 0.455
+2026-06-18 12:46:20 | INFO     | retriever            | [RETRIEVER] ✅ RELEVANT — _test_electricity.pdf (score: 0.455)
+2026-06-18 12:46:20 | INFO     | retriever            | [RETRIEVER] COMPREHENSIVE — _test_electricity.pdf → 3 chunks (threshold 0.1, cap 15)
+2026-06-18 12:46:20 | INFO     | retriever            | [RETRIEVER] Total returned: 3
+2026-06-18 12:46:25 | INFO     | generator            | [GENERATOR] ✅ Streamed answer generated with memory summary
+2026-06-18 12:46:25 | INFO     | app                  | [QUERY] STEP 4 — Storing turn in conversation memory
+2026-06-18 12:46:25 | INFO     | memory_store         | [MEMORY_STORE] ✅ Updated group: group_e30a6441
+2026-06-18 12:46:25 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Added turn turn_dd825b34 to group group_e30a6441
+2026-06-18 12:46:25 | INFO     | app                  | [QUERY] ✅ Turn saved to group group_e30a6441
+2026-06-18 12:46:53 | INFO     | memory_store         | [MEMORY_STORE] ✅ Updated group: group_7f61ee43
+2026-06-18 12:46:53 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Renamed group group_7f61ee43: 'SI unit of electric current' → 'Renamed Topic'
+2026-06-18 12:46:53 | INFO     | memory_store         | [MEMORY_STORE] ✅ Created group: group_4ac71ee5
+2026-06-18 12:46:53 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Created group group_4ac71ee5: Temp Group
+2026-06-18 12:47:04 | INFO     | memory_store         | [MEMORY_STORE] ✅ Updated group: group_7f61ee43
+2026-06-18 12:47:04 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Renamed group group_7f61ee43: 'Renamed Topic' → 'Renamed Topic'
+2026-06-18 12:47:15 | INFO     | memory_store         | [MEMORY_STORE] ✅ Created group: group_ffd66255
+2026-06-18 12:47:15 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Created group group_ffd66255: Temp Group
+2026-06-18 12:47:15 | INFO     | memory_store         | [MEMORY_STORE] ✅ Deleted group: group_ffd66255
+2026-06-18 12:47:15 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Deleted group group_ffd66255
+2026-06-18 12:47:24 | INFO     | vector_store         | [STORE] ✅ Deleted 3 vectors for: _test_electricity.pdf

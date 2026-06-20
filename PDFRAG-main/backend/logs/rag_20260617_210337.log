@@ -1,6 +1,0 @@
-2026-06-17 21:03:37 | INFO     | memory_manager       | [MEMORY_MGR] Initializing conversation memory manager
-2026-06-17 21:03:37 | INFO     | memory_store         | [MEMORY_STORE] Initializing with Chroma DB at C:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\chroma_db
-2026-06-17 21:03:39 | INFO     | memory_store         | [MEMORY_STORE] ✅ Collections loaded — metadata: 45, summaries: 0
-2026-06-17 21:03:39 | INFO     | memory_store         | [MEMORY_STORE] ✅ Retrieved 45 groups
-2026-06-17 21:03:39 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Loaded 45 groups from storage
-2026-06-17 21:03:39 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Manager initialized

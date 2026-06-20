@@ -10,7 +10,14 @@ log = get_logger("generator")
 # Broad intents that gather many chunks are processed by splitting the chunks into
 # batches, running the "map" LLM calls in parallel, then merging via a "reduce" call.
 # This avoids one oversized LLM request and is faster than a single giant call.
-MAP_REDUCE_INTENTS = {"extraction", "summary", "analysis"}
+MAP_REDUCE_INTENTS = {
+    "targeted_extraction",
+    "global_extraction",
+    "targeted_summary",
+    "global_summary",
+    "analysis",
+}
+
 MAP_REDUCE_BATCH_SIZE = 10   # chunks per parallel map call
 MAP_REDUCE_MIN_CHUNKS = 12   # only parallelize when chunk count exceeds this
 # Run ALL map batches concurrently (one worker per batch) up to this ceiling.
@@ -73,38 +80,9 @@ class Generator:
         # DYNAMIC CONTEXT: Choose what to send based on turn count
         log.info(f"[GENERATOR] Dynamic context strategy: turn_count={turn_count}")
         
-        if memory_context:
-            if turn_count >= 6:
-                # Turn 6+: Use summary only (save tokens)
-                log.info("[GENERATOR] Turn 6+: Using memory summary only (context optimization)")
-                context_sections.append("## Conversation Memory:\n" + memory_context)
-            else:
-                # Turns 1-5: Send full context for clarity
-                log.info("[GENERATOR] Turns 1-5: Using full memory context (build understanding)")
-                context_sections.append("## Previous Conversation Context:\n" + memory_context)
-        
-        # Add retrieved document chunks
-        context_sections.append("## Document Context:")
-        context_sections.append("\n\n".join([  
-            f"[Source: {c['filename']} | Page: {c['page']} | Chunk: {c['chunk_index']}]\n{c['text']}"  
-            for c in context_chunks  
-        ]))
-        
-        full_context = "\n\n".join(context_sections)
-        
-        # Get intent-specific system prompt
-        system_prompt = self._get_system_prompt(retrieval_intent)
-
-        messages = [  
-            {
-                "role": "system",  
-                "content": system_prompt,
-            },  
-            {
-                "role": "user",  
-                "content": f"Context:\n{full_context}\n\nQuestion: {query}",  
-            },  
-        ]
+        messages = self._build_single_messages(
+            query, context_chunks, memory_context, retrieval_intent, turn_count
+        )
 
         response = self.client.chat.completions.create(  
             model=CHAT_MODEL,  
@@ -117,6 +95,37 @@ class Generator:
         
         log.info("[GENERATOR] ✅ Answer generated with memory summary")  
         return answer, memory_summary
+
+    def _build_single_messages(self, query: str, context_chunks: list, memory_context: str,
+                               retrieval_intent: str, turn_count: int) -> list:
+        """Build the chat messages for the single-call generation path (shared by the
+        streaming and non-streaming paths so they send identical context)."""
+        context_sections = []
+
+        if memory_context:
+            if turn_count >= 6:
+                # Turn 6+: Use summary only (save tokens)
+                log.info("[GENERATOR] Turn 6+: Using memory summary only (context optimization)")
+                context_sections.append("## Conversation Memory:\n" + memory_context)
+            else:
+                # Turns 1-5: Send full context for clarity
+                log.info("[GENERATOR] Turns 1-5: Using full memory context (build understanding)")
+                context_sections.append("## Previous Conversation Context:\n" + memory_context)
+
+        # Add retrieved document chunks
+        context_sections.append("## Document Context:")
+        context_sections.append("\n\n".join([
+            f"[Source: {c['filename']} | Page: {c['page']} | Chunk: {c['chunk_index']}]\n{c['text']}"
+            for c in context_chunks
+        ]))
+
+        full_context = "\n\n".join(context_sections)
+        system_prompt = self._get_system_prompt(retrieval_intent)
+
+        return [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"Context:\n{full_context}\n\nQuestion: {query}"},
+        ]
     
     def _generate_map_reduce(self, query: str, context_chunks: list, temperature: float,
                              memory_context: str, retrieval_intent: str) -> tuple:
@@ -129,6 +138,29 @@ class Generator:
 
         Returns:
             tuple: (answer, memory_summary)
+        """
+        partials, system_prompt = self._map_phase(query, context_chunks, temperature, retrieval_intent)
+
+        if not partials:
+            log.warning("[GENERATOR] Map-reduce: no relevant content found in any batch")
+            answer = "The provided document chunks do not contain information relevant to this question."
+            return answer, answer[:150]
+
+        log.info(f"[GENERATOR] Map-reduce: {len(partials)} batches returned content — reducing")
+
+        # ── REDUCE: merge partial findings into one final answer ──
+        return self._reduce_partials(query, partials, system_prompt, memory_context, temperature)
+
+    def _map_phase(self, query: str, context_chunks: list, temperature: float,
+                   retrieval_intent: str) -> tuple:
+        """
+        MAP phase: split chunks into batches and extract relevant content from each
+        batch in parallel. Shared by the streaming and non-streaming generation paths.
+
+        Returns:
+            tuple: (partials, system_prompt)
+                - partials: list of non-empty partial extraction strings (NONE filtered out)
+                - system_prompt: the intent-specific system prompt (reused by reduce)
         """
         system_prompt = self._get_system_prompt(retrieval_intent)
         batches = [
@@ -163,15 +195,7 @@ class Generator:
             if text and text.upper() != "NONE":
                 partials.append(text)
 
-        if not partials:
-            log.warning("[GENERATOR] Map-reduce: no relevant content found in any batch")
-            answer = "The provided document chunks do not contain information relevant to this question."
-            return answer, answer[:150]
-
-        log.info(f"[GENERATOR] Map-reduce: {len(partials)}/{len(batches)} batches returned content — reducing")
-
-        # ── REDUCE: merge partial findings into one final answer ──
-        return self._reduce_partials(query, partials, system_prompt, memory_context, temperature)
+        return partials, system_prompt
 
     def _map_batch(self, task: dict, index: int, total: int) -> dict:
         """MAP worker: extract content relevant to the query from a single chunk batch."""
@@ -183,17 +207,25 @@ class Generator:
         map_system = (
             task["system_prompt"]
             + f"\n\nMAP STEP (batch {index}/{total}): You are seeing only PART of the "
-              "document chunks. Extract every detail from THESE chunks that is relevant "
-              "to the question. Output ONLY the relevant extracted facts/points (with "
-              "their Source/Page/Chunk labels). "
+              "document chunks. Evaluate EACH chunk in this batch INDIVIDUALLY — do NOT "
+              "judge the batch as a whole. For every chunk, one at a time:\n"
+              "  • If that chunk contains anything relevant to the question, extract its "
+              "relevant facts/points and keep its [Source | Page | Chunk] label.\n"
+              "  • If that chunk is not relevant, simply skip it and move to the next.\n"
+              "A single relevant chunk is enough to keep — never discard a relevant chunk "
+              "just because other chunks in this batch are irrelevant. "
+              "Extract EVERY matching item present in the relevant chunks, IN FULL and "
+              "VERBATIM (every row, entry, or list item with its identifier) — never a "
+              "representative subset, sample, or summary, and never collapse multiple items "
+              "into one. "
               "If the request targets items the source demarcates with a specific label, "
-              "heading, or marker, include ONLY passages in these chunks that actually "
-              "carry that marker; do NOT treat ordinary body text, formulas, or general "
-              "statements that merely resemble them as matches. When in doubt, exclude it. "
-              "Do NOT write a preamble, do NOT say "
-              "information is missing or incomplete (other batches cover the rest), and "
-              "do NOT add a MEMORY_SUMMARY. If NONE of these chunks are relevant, reply "
-              "with exactly: NONE"
+              "heading, or marker, include ONLY passages that actually carry that marker; "
+              "do NOT treat ordinary body text, formulas, or general statements that merely "
+              "resemble them as matches. "
+              "Do NOT write a preamble, do NOT say information is missing or incomplete "
+              "(other batches cover the rest), and do NOT add a MEMORY_SUMMARY. "
+              "Reply with exactly: NONE — only if, after checking EVERY chunk individually, "
+              "not a single chunk was relevant."
         )
         messages = [
             {"role": "system", "content": map_system},
@@ -210,6 +242,20 @@ class Generator:
     def _reduce_partials(self, query: str, partials: list, system_prompt: str,
                          memory_context: str, temperature: float) -> tuple:
         """REDUCE step: merge parallel partial findings into one final answer + summary."""
+        messages = self._build_reduce_messages(query, partials, system_prompt, memory_context)
+        response = self.client.chat.completions.create(
+            model=CHAT_MODEL,
+            messages=messages,
+            temperature=temperature,
+        )
+        answer, memory_summary = self._parse_answer_and_summary(response.choices[0].message.content)
+        log.info("[GENERATOR] ✅ Map-reduce answer generated with memory summary")
+        return answer, memory_summary
+
+    def _build_reduce_messages(self, query: str, partials: list, system_prompt: str,
+                               memory_context: str) -> list:
+        """Build the chat messages for the REDUCE step (shared by streaming and
+        non-streaming paths so they merge partials identically)."""
         combined = "\n\n---\n\n".join([f"[Partial {i + 1}]\n{p}" for i, p in enumerate(partials)])
 
         reduce_sections = []
@@ -220,31 +266,185 @@ class Generator:
 
         reduce_system = (
             system_prompt
-            + "\n\nREDUCE STEP: The context below contains partial findings that were "
-              "extracted IN PARALLEL from different sections of the SAME document. Merge "
-              "them into ONE coherent answer: de-duplicate repeated items, resolve "
-              "overlaps, and present a single unified response following your formatting "
-              "rules. Use ONLY the information in these partial findings."
+            + "\n\nREDUCE STEP: The context below contains partial findings extracted IN "
+              "PARALLEL from different sections of the source document(s). Combine "
+              "them into ONE unified answer that includes EVERY distinct item from ALL partials "
+              "— do NOT omit, skip, shorten, or summarize away any item. The ONLY thing you may "
+              "remove is an EXACT duplicate of the same item appearing in more than one partial "
+              "(keep a single copy, merging the fullest detail). Preserve each item's "
+              "identifier and the source's original order; if items are numbered, keep the "
+              "sequence continuous with no missing entries. Use ONLY information that actually "
+              "appears in these partial findings — never introduce topics, sections, themes, or "
+              "facts that are not present in them. Follow your formatting rules. "
+              "Do NOT mention this merging, the partials, or the chunks, and do NOT add any "
+              "preamble — output ONLY the final answer content."
         )
-        messages = [
+        return [
             {"role": "system", "content": reduce_system},
             {"role": "user", "content": f"Context:\n{full_context}\n\nQuestion: {query}"},
         ]
-        response = self.client.chat.completions.create(
+
+    # ──────────────────────────────────────────────────────────────────────
+    #  STREAMING GENERATION
+    # ──────────────────────────────────────────────────────────────────────
+    def generate_stream(self, query: str, context_chunks: list, temperature: float = 0.2,
+                        memory_context: str = None, retrieval_intent: str = None, turn_count: int = 1):
+        """
+        Streaming variant of generate(). A Python generator that yields event dicts:
+            {"type": "token", "text": <delta>}                      # ANSWER-section deltas
+            {"type": "done", "answer": <full>, "memory_summary": <s>}  # terminal event
+
+        For broad intents over many chunks the MAP phase runs first (not streamable),
+        then the REDUCE call is streamed. Otherwise the single generation call streams.
+        Only the ANSWER section is streamed to the client; MEMORY_SUMMARY is buffered
+        for conversation memory and returned in the terminal event.
+        """
+        if retrieval_intent in MAP_REDUCE_INTENTS and len(context_chunks) > MAP_REDUCE_MIN_CHUNKS:
+            partials, system_prompt = self._map_phase(query, context_chunks, temperature, retrieval_intent)
+            if not partials:
+                log.warning("[GENERATOR] Stream map-reduce: no relevant content in any batch")
+                answer = "The provided document chunks do not contain information relevant to this question."
+                yield {"type": "token", "text": answer}
+                yield {"type": "done", "answer": answer, "memory_summary": answer[:150]}
+                return
+            log.info(f"[GENERATOR] Stream map-reduce: {len(partials)} batches returned content — streaming reduce")
+            messages = self._build_reduce_messages(query, partials, system_prompt, memory_context)
+        else:
+            messages = self._build_single_messages(
+                query, context_chunks, memory_context, retrieval_intent, turn_count
+            )
+
+        yield from self._stream_chat(messages, temperature)
+
+    # ──────────────────────────────────────────────────────────────────────
+    #  COMPOUND (MULTI-SEGMENT) GENERATION
+    # ──────────────────────────────────────────────────────────────────────
+    def generate_segments(self, segments: list, temperature: float = 0.2,
+                          memory_context: str = None, turn_count: int = 1) -> tuple:
+        """Answer a COMPOUND query by generating each segment with its OWN intent and
+        its OWN retrieved chunks, then combining into one sectioned answer.
+
+        Each segment is just a normal generation (single-call or map-reduce, decided by
+        that segment's intent), so a 'compare A and B' segment gets the comparison format
+        and an 'extract C' segment gets the extraction/table format.
+        """
+        answer_parts = []
+        summaries = []
+        for i, seg in enumerate(segments):
+            title = seg.get("title") or seg.get("query", "")
+            seg_answer, seg_summary = self.generate(
+                query=seg.get("query", ""),
+                context_chunks=seg.get("hits", []),
+                temperature=temperature,
+                memory_context=memory_context if i == 0 else None,
+                retrieval_intent=seg.get("intent"),
+                turn_count=turn_count,
+            )
+            answer_parts.append(f"## {title}\n\n{(seg_answer or '').strip()}".strip())
+            if seg_summary:
+                summaries.append(seg_summary)
+        full_answer = "\n\n".join(p for p in answer_parts if p).strip()
+        full_summary = " ".join(summaries).strip()[:300]
+        log.info(f"[GENERATOR] ✅ Compound answer generated from {len(segments)} segment(s)")
+        return full_answer, full_summary
+
+    def generate_segments_stream(self, segments: list, temperature: float = 0.2,
+                                 memory_context: str = None, turn_count: int = 1):
+        """Streaming variant of generate_segments: stream each segment's answer under its
+        own heading, then emit ONE terminal 'done' with the combined answer + summary."""
+        answer_parts = []
+        summaries = []
+        for i, seg in enumerate(segments):
+            title = seg.get("title") or seg.get("query", "")
+            heading = f"## {title}\n\n"
+            yield {"type": "token", "text": (("\n\n" if i > 0 else "") + heading)}
+            seg_answer = ""
+            seg_summary = ""
+            for ev in self.generate_stream(
+                query=seg.get("query", ""),
+                context_chunks=seg.get("hits", []),
+                temperature=temperature,
+                memory_context=memory_context if i == 0 else None,
+                retrieval_intent=seg.get("intent"),
+                turn_count=turn_count,
+            ):
+                etype = ev.get("type")
+                if etype == "token":
+                    yield ev
+                elif etype == "done":
+                    seg_answer = ev.get("answer", "")
+                    seg_summary = ev.get("memory_summary", "")
+                elif etype == "error":
+                    yield ev
+            answer_parts.append(f"## {title}\n\n{(seg_answer or '').strip()}".strip())
+            if seg_summary:
+                summaries.append(seg_summary)
+        full_answer = "\n\n".join(p for p in answer_parts if p).strip()
+        full_summary = " ".join(summaries).strip()[:300]
+        log.info(f"[GENERATOR] ✅ Compound stream generated from {len(segments)} segment(s)")
+        yield {"type": "done", "answer": full_answer, "memory_summary": full_summary}
+
+    @staticmethod
+    def _answer_portion(raw: str) -> str:
+        """Extract the ANSWER-section text seen so far from a partial raw stream:
+        strips a leading 'ANSWER:' label and cuts anything from 'MEMORY_SUMMARY:' on."""
+        text = raw
+        if "MEMORY_SUMMARY:" in text:
+            text = text.split("MEMORY_SUMMARY:")[0]
+        if "ANSWER:" in text:
+            text = text.split("ANSWER:", 1)[1]
+        return text.lstrip()
+
+    def _stream_chat(self, messages: list, temperature: float):
+        """
+        Stream a single chat completion, yielding ANSWER-section text deltas and a
+        terminal 'done' event with the parsed (answer, memory_summary).
+
+        A small tail of the answer text is held back on each delta so a partially
+        arrived 'MEMORY_SUMMARY:' marker is never emitted to the client.
+        """
+        raw = ""
+        emitted_len = 0
+        HOLD = 24  # > len("MEMORY_SUMMARY:") so a partial marker is never emitted
+
+        stream = self.client.chat.completions.create(
             model=CHAT_MODEL,
             messages=messages,
             temperature=temperature,
+            stream=True,
+            timeout=LLM_REQUEST_TIMEOUT,
         )
-        answer, memory_summary = self._parse_answer_and_summary(response.choices[0].message.content)
-        log.info("[GENERATOR] ✅ Map-reduce answer generated with memory summary")
-        return answer, memory_summary
+        for chunk in stream:
+            if not getattr(chunk, "choices", None):
+                continue
+            delta = chunk.choices[0].delta.content or ""
+            if not delta:
+                continue
+            raw += delta
+            answer_so_far = self._answer_portion(raw)
+            safe_upto = max(emitted_len, len(answer_so_far) - HOLD)
+            if safe_upto > emitted_len:
+                yield {"type": "token", "text": answer_so_far[emitted_len:safe_upto]}
+                emitted_len = safe_upto
+
+        # Stream finished — flush any remaining answer text, then the terminal event.
+        answer_final, memory_summary = self._parse_answer_and_summary(raw)
+        if len(answer_final) > emitted_len:
+            yield {"type": "token", "text": answer_final[emitted_len:]}
+        log.info("[GENERATOR] ✅ Streamed answer generated with memory summary")
+        yield {"type": "done", "answer": answer_final, "memory_summary": memory_summary}
     
     def _parse_answer_and_summary(self, response: str) -> tuple:
         """
         Parse response to extract answer and memory summary.
         
+        Robust to the model omitting the leading ``ANSWER:`` label: the split on
+        ``MEMORY_SUMMARY:`` happens INDEPENDENTLY of whether ``ANSWER:`` is present, so a
+        response that dives straight into content but still appends a ``MEMORY_SUMMARY:``
+        section never leaks that section into the visible answer.
+        
         Args:
-            response: Full response from LLM with ANSWER and MEMORY_SUMMARY sections
+            response: Full response from LLM with optional ANSWER and MEMORY_SUMMARY sections
             
         Returns:
             tuple: (answer, memory_summary)
@@ -252,78 +452,17 @@ class Generator:
         answer = response
         memory_summary = ""
         
-        # Try to extract sections if they exist
-        if "ANSWER:" in response:
-            parts = response.split("MEMORY_SUMMARY:")
-            if len(parts) == 2:
-                answer = parts[0].replace("ANSWER:", "").strip()
-                memory_summary = parts[1].strip()
-            else:
-                answer = parts[0].replace("ANSWER:", "").strip()
+        # Split off the memory summary first — do NOT gate this on the ANSWER: label,
+        # which the model sometimes drops while still emitting MEMORY_SUMMARY:.
+        if "MEMORY_SUMMARY:" in answer:
+            answer, _, memory_summary = answer.partition("MEMORY_SUMMARY:")
+            memory_summary = memory_summary.strip()
         
-        return answer, memory_summary
-    
-    def create_summary_and_embedding_parallel(self, memory_summary: str, embedder) -> tuple:
-        """
-        Create summary and embedding in parallel with race condition handling.
+        # Strip a leading ANSWER: label if the model included one.
+        if "ANSWER:" in answer:
+            answer = answer.split("ANSWER:", 1)[1]
         
-        Args:
-            memory_summary: The summary text to embed
-            embedder: Embedder instance for creating embeddings
-            
-        Returns:
-            tuple: (memory_summary, embedding)
-                - memory_summary: The input summary (unchanged)
-                - embedding: Generated embedding vector
-        """
-        import threading
-        
-        log.info("[GENERATOR] Creating summary and embedding in parallel")
-        
-        embedding_result = {"result": None, "error": None}
-        lock = threading.Lock()
-        
-        def generate_embedding():
-            """Thread worker for embedding generation with lock protection."""
-            try:
-                embeddings = embedder.embed_texts([memory_summary])
-                if embeddings:
-                    with lock:
-                        embedding_result["result"] = embeddings[0]
-                    log.info("[GENERATOR] ✅ Embedding created successfully")
-                else:
-                    with lock:
-                        embedding_result["error"] = "Failed to generate embedding"
-                    log.warning("[GENERATOR] ⚠️ No embedding returned")
-            except Exception as e:
-                with lock:
-                    embedding_result["error"] = str(e)
-                log.error(f"[GENERATOR] ❌ Embedding failed: {e}", exc_info=True)
-        
-        # Start embedding thread
-        embedding_thread = threading.Thread(target=generate_embedding, daemon=False)
-        embedding_thread.start()
-        
-        # Wait for embedding to complete with timeout
-        embedding_thread.join(timeout=30)
-        
-        # Check race conditions and errors
-        if embedding_thread.is_alive():
-            log.warning("[GENERATOR] ⚠️ Embedding generation timed out after 30s")
-            # Thread still running, but we can't wait forever
-            # Return with None embedding and let it complete in background
-            return memory_summary, None
-        
-        if embedding_result["error"]:
-            log.error(f"[GENERATOR] ❌ Embedding creation failed: {embedding_result['error']}")
-            return memory_summary, None
-        
-        if embedding_result["result"] is None:
-            log.warning("[GENERATOR] ⚠️ Embedding result is None")
-            return memory_summary, None
-        
-        log.info("[GENERATOR] ✅ Summary and embedding created in parallel")
-        return memory_summary, embedding_result["result"]
+        return answer.strip(), memory_summary
     
     def _get_system_prompt(self, retrieval_intent: str) -> str:
         """
@@ -342,60 +481,5 @@ class Generator:
             retrieval_intent = "factual"
         
         return get_system_prompt(retrieval_intent)
-    
-    def _parse_llm_response(self, response: str) -> tuple:
-        try:
-            # Split by MEMORY_SUMMARY marker
-            if "MEMORY_SUMMARY:" in response:
-                parts = response.split("MEMORY_SUMMARY:")
-                answer = parts[0].replace("ANSWER:", "").strip()
-                memory_summary = parts[1].strip()
-            else:
-                # Fallback: use entire response as answer, create summary from it
-                answer = response.replace("ANSWER:", "").strip()
-                memory_summary = self._extract_key_points(answer)
-            
-            # Validate lengths
-            if not answer:
-                answer = "Unable to generate answer from context."
-            if not memory_summary:
-                memory_summary = answer[:150]
-            
-            return answer, memory_summary
-            
-        except Exception as e:
-            log.error(f"[GENERATOR] ❌ Failed to parse response: {e}", exc_info=True)
-            # Return full response as answer, first 150 chars as summary
-            return response, response[:150]
-    
-    def _extract_key_points(self, text: str, max_length: int = 150) -> str:
-        """
-        Extract key points from text as fallback summary method.
-        
-        Args:
-            text: The text to extract from
-            max_length: Maximum length of summary
-            
-        Returns:
-            Extracted key points
-        """
-        import re
-        
-        # Find bullet points
-        lines = text.split('\n')
-        bullets = [line.strip() for line in lines if line.strip().startswith('-') or line.strip().startswith('•')]
-        
-        if bullets:
-            # Use first 2-3 bullets
-            summary = "; ".join(bullets[:3])
-        else:
-            # Use first 2 sentences
-            sentences = re.split(r'[.!?]+', text)
-            summary = ". ".join([s.strip() for s in sentences[:2] if s.strip()]) + "."
-        
-        # Limit length
-        if len(summary) > max_length:
-            summary = summary[:max_length].rsplit(' ', 1)[0] + "..."
-        
-        return summary  
+
 

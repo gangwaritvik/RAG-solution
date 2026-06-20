@@ -21,9 +21,11 @@ class DependencyType(Enum):
 class RetrievalIntent(Enum):
     """Query intent classification for retrieval strategy."""
     FACTUAL = "factual"              # What is X? → Top relevant chunks
-    SUMMARY = "summary"               # Summarize X → Broader coverage
+    TARGETED_SUMMARY = "targeted_summary"  # Summarize a specific section/topic
+    GLOBAL_SUMMARY = "global_summary"      # Summarize whole document/corpus
     COMPARISON = "comparison"         # Compare X and Y → Multi-group retrieval
-    EXTRACTION = "extraction"         # List all X → Aggregate information
+    TARGETED_EXTRACTION = "targeted_extraction"  # Extract specific table/list subset
+    GLOBAL_EXTRACTION = "global_extraction"      # Enumerate all matching items
     ANALYSIS = "analysis"             # Why/how/risks → Cross-section reasoning
     AMBIGUOUS = "ambiguous"           # Intent unclear, needs clarification
 
@@ -45,6 +47,8 @@ class QueryContext:
     suggested_topic: Optional[str]    # Topic for new group
     is_multi_group: bool              # True if multi_group dependency type
     sub_queries: List[Dict[str, str]] = field(default_factory=list)  # For multi_group queries
+    segments: List[Dict[str, Any]] = field(default_factory=list)  # Compound-query operation segments
+    restrict_filenames: Optional[List[str]] = None  # Single-query file pinning (LLM-chosen)
     llm_reasoning: Optional[str] = None  # Reasoning from LLM
     answer_source: str = "document"   # 'document' or 'previous_answer' (LLM-decided)
 
@@ -208,10 +212,20 @@ class ContextResolver:
         
         # Step 4: Handle multi-group queries
         sub_queries = []
-        if dependency_type == DependencyType.MULTI_GROUP:
+        # Compound-query segments: distinct operations, each with its OWN intent and
+        # optional file pinning, generated separately and combined. When present (>=2),
+        # they REPLACE the flat sub-query split (and its extra per-subject LLM calls).
+        segments = self._build_segments(llm_result.get("segments", []), available_documents)
+        if segments:
+            log.info(f"[RESOLVER] Compound query — {len(segments)} segments (per-segment intent; skipping flat sub-query split)")
+            for seg in segments:
+                log.info(f"[RESOLVER]   segment: '{seg['title']}' | intent={seg['intent']} | files={seg['files']}")
+        elif dependency_type == DependencyType.MULTI_GROUP:
             log.info("[RESOLVER] Processing multi-group query")
             if self.llm_classifier and sub_queries_raw:
-                sub_queries = self.llm_classifier.split_multi_group_query(query, sub_queries_raw)
+                sub_queries = self.llm_classifier.split_multi_group_query(
+                    query, sub_queries_raw, available_documents=available_documents
+                )
             else:
                 # Safety net: classifier failed to provide sub-queries for a
                 # multi_group query. Don't silently collapse to one entry (that loses
@@ -222,11 +236,23 @@ class ContextResolver:
                 if self.llm_classifier:
                     recovered = self.llm_classifier.recover_sub_queries(standalone_query or query)
                 if recovered:
-                    sub_queries = self.llm_classifier.split_multi_group_query(query, recovered)
+                    sub_queries = self.llm_classifier.split_multi_group_query(
+                        query, recovered, available_documents=available_documents
+                    )
                 else:
                     log.warning("[RESOLVER] ⚠️ Recovery failed — using full query as single comparison")
                     sub_queries = [{"query": standalone_query or query, "topic": "Comparison"}]
             log.info(f"[RESOLVER] Split into {len(sub_queries)} sub-queries")
+
+            # Per-subject document pinning: the lightweight per-sub-query LLM call
+            # decides which loaded file(s) a subject targets (validated against the real
+            # file list). When the user specifically refers to file(s), that subject's
+            # retrieval is pinned to exactly those file(s); otherwise it stays unpinned
+            # and searches all documents. No string/token heuristics — the LLM decides.
+            if available_documents:
+                for sq in sub_queries:
+                    if sq.get("filenames"):
+                        log.info(f"[RESOLVER] Sub-query '{sq.get('query', '')[:40]}' pinned to file(s): {sq['filenames']}")
         
         # Step 5: Find relevant groups based on dependency type
         # YOUR PIPELINE: For DEPENDENT queries, check if belongs to active group FIRST
@@ -234,10 +260,28 @@ class ContextResolver:
         
         if dependency_type == DependencyType.DEPENDENT:
             if active_group_id and belongs_to_active:
-                # ✅ BELONGS TO ACTIVE GROUP → Use it directly
+                # ✅ BELONGS TO ACTIVE GROUP — use it, AND ALSO merge in any OTHER group that
+                # is CLEARLY related (high threshold). A follow-up can legitimately draw on a
+                # prior DIFFERENT topic at the same time as the active one; this loads that
+                # topic's memory ALONGSIDE the active group instead of dropping it. The
+                # active group is loaded directly; these are supplementary context only, and
+                # the threshold is deliberately conservative so unrelated topics don't dilute
+                # the active focus.
                 log.info(f"[RESOLVER] DEPENDENT query BELONGS to active group {active_group_id}")
-                log.info(f"[RESOLVER] Using active group context directly (no new group)")
-                relevant_groups = []  # Don't search, use active group
+                merged = self._find_relevant_groups(
+                    standalone_query,
+                    threshold=0.6,  # higher than the 0.5 used when NOT in the active group
+                    limit=2
+                )
+                # Never duplicate the active group — it is loaded separately.
+                relevant_groups = [
+                    g for g in merged
+                    if g.get("group") is None or g["group"].group_id != active_group_id
+                ]
+                if relevant_groups:
+                    log.info(f"[RESOLVER] Merging {len(relevant_groups)} additional related group(s) with the active group")
+                else:
+                    log.info("[RESOLVER] No other clearly-related groups to merge — active group only")
             else:
                 # ❌ Does NOT belong to active group → Search for relevant ones
                 log.info("[RESOLVER] DEPENDENT query — retrieving relevant groups with threshold")
@@ -313,6 +357,21 @@ class ContextResolver:
                     log.warning(f"[RESOLVER] ⚠️ Failed to auto-create group: {e}")
                     # Fall back to creating on next step
                     should_create_new_group = True
+
+        elif dependency_type == DependencyType.MULTI_GROUP:
+            # Comparison / multi-subject query — create a group so the turn is stored
+            # in conversation memory (otherwise follow-ups have no context to build on).
+            log.info("[RESOLVER] MULTI_GROUP query — creating group to track the comparison")
+            if not suggested_topic:
+                suggested_topic = query[:50].title()
+            try:
+                new_group = self.memory_manager.create_conversation_group(suggested_topic)
+                active_group_id = new_group.group_id
+                should_create_new_group = False
+                log.info(f"[RESOLVER] ✅ Created multi-group topic {active_group_id}: {suggested_topic}")
+            except Exception as e:
+                log.warning(f"[RESOLVER] ⚠️ Failed to create multi-group group: {e}")
+                should_create_new_group = True
         
         # Step 6: Load memory context
         memory_context = self._load_memory_context(
@@ -328,6 +387,38 @@ class ContextResolver:
             DependencyType.MULTI_GROUP
         ]
         
+        # Single-query file pinning: when the user's query unmistakably targets specific
+        # loaded file(s) (by name or clear description), the LLM returns source_files and
+        # retrieval is restricted to exactly those file(s) so e.g. "summarize electricity.pdf"
+        # never pulls chunks from other documents. Validated against the real file list;
+        # an empty/unsure pick stays None (search all). Multi-group/compound queries do
+        # their own per-subject/segment pinning, so this is suppressed for them.
+        restrict_filenames = None
+        if not segments and dependency_type != DependencyType.MULTI_GROUP:
+            restrict_filenames = self._validate_filenames(
+                llm_result.get("source_files", []), available_documents
+            )
+            if restrict_filenames:
+                log.info(f"[RESOLVER] Query pinned to file(s): {restrict_filenames}")
+            elif (
+                dependency_type == DependencyType.DEPENDENT
+                and belongs_to_active
+                and active_group is not None
+            ):
+                # Carry-forward: a follow-up that stays within the active conversation but
+                # names no file of its own inherits the group's most recent pin. This keeps
+                # e.g. a follow-up to an electricity-pinned summary scoped to electricity.pdf
+                # instead of letting a semantically-broad term ("safety", "precautions")
+                # pull in unrelated documents. Validated against the current file list, so a
+                # since-removed file falls back to searching everything.
+                for turn in reversed(active_group.all_turns):
+                    prev_pin = getattr(turn, "restrict_filenames", None)
+                    if prev_pin:
+                        restrict_filenames = self._validate_filenames(prev_pin, available_documents)
+                        if restrict_filenames:
+                            log.info(f"[RESOLVER] Follow-up inherited conversation pin: {restrict_filenames}")
+                        break
+        
         context = QueryContext(
             original_query=original_query,
             standalone_query=standalone_query,
@@ -342,12 +433,65 @@ class ContextResolver:
             suggested_topic=suggested_topic,
             is_multi_group=dependency_type == DependencyType.MULTI_GROUP,
             sub_queries=sub_queries,
+            segments=segments,
+            restrict_filenames=restrict_filenames,
             llm_reasoning=reasoning,
             answer_source=answer_source,
         )
         
         log.info("[RESOLVER] ✅ Context resolution complete")
         return context
+    
+    def _build_segments(
+        self,
+        segments_raw: Any,
+        available_documents: Optional[List[str]],
+    ) -> List[Dict[str, Any]]:
+        """Validate the LLM's compound-query ``segments`` into clean operation segments.
+
+        Each kept segment is ``{query, intent, files, title}``. A segment's intent is
+        validated against the retrieval-intent enum (defaulting to factual) and its
+        source_files against the real loaded-file list (unknown names dropped). Returns
+        a list ONLY when there are >= 2 valid segments; otherwise [] (single-operation
+        query → normal single-intent path).
+        """
+        if not isinstance(segments_raw, list) or len(segments_raw) < 2:
+            return []
+        valid_intents = {i.value for i in RetrievalIntent if i != RetrievalIntent.AMBIGUOUS}
+        out: List[Dict[str, Any]] = []
+        for seg in segments_raw:
+            if not isinstance(seg, dict):
+                continue
+            q = str(seg.get("query", "")).strip()
+            if not q:
+                continue
+            intent = str(seg.get("intent", "")).strip().lower()
+            if intent not in valid_intents:
+                intent = "factual"
+            files = self._validate_filenames(seg.get("source_files", []), available_documents)
+            title = str(seg.get("title", "")).strip() or q[:40]
+            out.append({"query": q, "intent": intent, "files": files, "title": title})
+        return out if len(out) >= 2 else []
+
+    @staticmethod
+    def _validate_filenames(
+        raw: Any,
+        available_documents: Optional[List[str]],
+    ) -> Optional[List[str]]:
+        """Validate LLM-chosen filenames against the real loaded-file list.
+
+        Accepts a list or a lone string. Drops unknown/hallucinated names and de-dups,
+        preserving order. Returns the cleaned list, or ``None`` (search all files) when
+        nothing valid remains — so an empty/garbage pick never over-restricts retrieval.
+        """
+        valid_files = {str(d).strip() for d in (available_documents or [])}
+        if isinstance(raw, str):
+            raw = [raw]
+        if not isinstance(raw, list):
+            return None
+        files = [f for f in (str(x).strip() for x in raw) if f in valid_files]
+        files = list(dict.fromkeys(files))  # de-dup, keep order
+        return files or None
     
     def _find_relevant_groups(
         self, 
@@ -417,6 +561,16 @@ class ContextResolver:
                 group_context = self.memory_manager.get_group_context(active_group_id)
                 if group_context:
                     context_parts.append(self._format_group_context(group_context))
+            # MERGE: also include any OTHER clearly-related group's summary (the active
+            # group is already loaded above and is skipped here to avoid duplication), so a
+            # follow-up that also draws on a different prior topic gets that context too.
+            # Only ready summaries are used.
+            for group_info in relevant_groups:
+                group = group_info.get("group")
+                if not group or group.group_id == active_group_id:
+                    continue
+                if group.summary and group.summary_ready:
+                    context_parts.append(f"## {group.topic}\n{group.summary}")
         
         elif dependency_type == DependencyType.MULTI_GROUP:
             # Load all relevant group summaries (only if ready)
@@ -501,9 +655,11 @@ class ContextResolver:
         """Map LLM string result to RetrievalIntent enum."""
         mapping = {
             "factual": RetrievalIntent.FACTUAL,
-            "summary": RetrievalIntent.SUMMARY,
+            "targeted_summary": RetrievalIntent.TARGETED_SUMMARY,
+            "global_summary": RetrievalIntent.GLOBAL_SUMMARY,
             "comparison": RetrievalIntent.COMPARISON,
-            "extraction": RetrievalIntent.EXTRACTION,
+            "targeted_extraction": RetrievalIntent.TARGETED_EXTRACTION,
+            "global_extraction": RetrievalIntent.GLOBAL_EXTRACTION,
             "analysis": RetrievalIntent.ANALYSIS,
             "ambiguous": RetrievalIntent.AMBIGUOUS,
         }

@@ -4,6 +4,7 @@ import threading
 from typing import Optional, Callable, List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from backend.config import CHAT_MODEL
 from backend.utils.logger import get_logger
 
 log = get_logger("background_summarizer")
@@ -144,33 +145,36 @@ class BackgroundSummarizer:
                 return False
             
             log.info(f"[BG_SUMMARIZER] [BACKGROUND] Generated summary ({len(summary)} chars)")
-            
-            # Generate embedding for new summary
-            log.info(f"[BG_SUMMARIZER] [BACKGROUND] Generating embedding...")
-            embeddings = self.embedder.embed_texts([summary])
-            summary_embedding = embeddings[0] if embeddings else None
-            
-            if not summary_embedding:
-                log.error(f"[BG_SUMMARIZER] [BACKGROUND] ❌ Failed to generate embedding")
-                return False
-            
-            log.info(f"[BG_SUMMARIZER] [BACKGROUND] Generated embedding vector")
-            
-            # Update group with new summary and embedding
-            log.info(f"[BG_SUMMARIZER] [BACKGROUND] Updating group {group_id}...")
+
+            # Persist the summary FIRST so it is never lost — even if embedding fails.
+            # (Previously a failed embedding discarded the whole summary, wasting the LLM call.)
+            log.info(f"[BG_SUMMARIZER] [BACKGROUND] Saving summary for group {group_id}...")
             success = self.memory_manager.update_group_summary(
                 group_id=group_id,
                 summary=summary,
-                summary_embedding=summary_embedding
             )
-            
-            if success:
-                log.info(f"[BG_SUMMARIZER] [BACKGROUND] ✅ Group {group_id} summarized successfully")
-                log.info(f"[BG_SUMMARIZER] [BACKGROUND]   Summary: {summary[:100]}...")
+            if not success:
+                log.error(f"[BG_SUMMARIZER] [BACKGROUND] ❌ Failed to save summary")
+                return False
+
+            # Generate the embedding and attach it to the already-saved summary. If the
+            # embedding step fails, the summary still stands; the group just won't be
+            # matchable by embedding similarity until the next summarization run.
+            log.info(f"[BG_SUMMARIZER] [BACKGROUND] Generating embedding...")
+            embeddings = self.embedder.embed_texts([summary])
+            summary_embedding = embeddings[0] if embeddings else None
+
+            if summary_embedding:
+                self.memory_manager.update_group_summary_with_embedding(
+                    group_id=group_id,
+                    embedding=summary_embedding,
+                )
+                log.info(f"[BG_SUMMARIZER] [BACKGROUND] ✅ Group {group_id} summarized (with embedding)")
             else:
-                log.error(f"[BG_SUMMARIZER] [BACKGROUND] ❌ Failed to update group")
-            
-            return success
+                log.warning(f"[BG_SUMMARIZER] [BACKGROUND] ⚠️ Embedding failed — summary saved without it")
+
+            log.info(f"[BG_SUMMARIZER] [BACKGROUND]   Summary: {summary[:100]}...")
+            return True
             
         except Exception as e:
             log.error(
@@ -196,19 +200,24 @@ class BackgroundSummarizer:
     def _format_turns_for_summarization(self, turns: List[Any]) -> str:
         """
         Format conversation turns for summarization prompt.
-        
+
+        Uses each turn's FULL answer (not the thin per-turn memory_summary) so the
+        summarizer distills from the rich source and doesn't compound compression
+        loss. Falls back to memory_summary only if a full answer isn't stored.
+
         Args:
             turns: List of ConversationTurn objects
-            
+
         Returns:
             Formatted string for LLM
         """
         lines = []
         for i, turn in enumerate(turns, 1):
+            answer_text = (getattr(turn, "full_answer", "") or turn.memory_summary or "").strip()
             lines.append(f"Q{i}: {turn.query}")
-            lines.append(f"A{i}: {turn.memory_summary}")
+            lines.append(f"A{i}: {answer_text}")
             lines.append("")
-        
+
         return "\n".join(lines)
     
     def _generate_summary_from_turns(
@@ -241,24 +250,31 @@ class BackgroundSummarizer:
                 prompt_parts.insert(2, f"Previous summary: {existing_summary}")
             
             prompt = "\n".join(prompt_parts)
-            prompt += "\n\nCreate a concise summary (2-3 sentences) of this conversation, combining the previous summary with new information from recent turns."
-            
-            # Call LLM for summary
-            from openai import AzureOpenAI
-            from backend.config import AZURE_ENDPOINT, AZURE_API_KEY, AZURE_API_VERSION
-            
-            client = AzureOpenAI(
-                azure_endpoint=AZURE_ENDPOINT,
-                api_key=AZURE_API_KEY,
-                api_version=AZURE_API_VERSION,
+            prompt += (
+                "\n\nWrite a running summary of this conversation by MERGING the previous "
+                "summary with the new turns above. Requirements:\n"
+                "- Keep it SHORT and BRIEF — no filler, no preamble, every line carries real "
+                "information. Length should follow the content: only as long as needed.\n"
+                "- Do NOT omit any specific claim, fact, numeric value, formula, definition, "
+                "name, unit, or conclusion that was established. Brevity must NOT cost facts.\n"
+                "- Preserve exact figures, units, formulas, and terminology verbatim.\n"
+                "- Prefer compact bullet points over prose; de-duplicate repeated points.\n"
+                "- Keep it self-contained so a later question can be answered from it alone."
             )
-            
-            response = client.chat.completions.create(
-                model="gpt-4",
+
+            # Call LLM for summary (use the generator's configured client + deployment
+            # so this matches the rest of the app and doesn't hit a non-existent model).
+            response = self.generator.client.chat.completions.create(
+                model=CHAT_MODEL,
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a concise summarization expert. Create clear, factual summaries."
+                        "content": (
+                            "You are a precise summarization expert. Produce brief, "
+                            "information-dense summaries that retain every concrete fact, "
+                            "claim, value, and conclusion. Never invent content; use only "
+                            "what the turns provide."
+                        )
                     },
                     {
                         "role": "user",
@@ -267,7 +283,7 @@ class BackgroundSummarizer:
                 ],
                 temperature=0.3,  # Low temp for consistency
             )
-            
+
             summary = response.choices[0].message.content.strip()
             return summary if summary else None
             

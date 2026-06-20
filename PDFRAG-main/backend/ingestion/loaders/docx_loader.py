@@ -7,9 +7,39 @@ log = get_logger("docx_loader")
 
 class DOCXLoader:
 
+    @staticmethod
+    def _table_to_text(table) -> str:
+        """Convert a DOCX table into plain text rows for embedding/retrieval."""
+        rows = []
+        for row in table.rows:
+            cells = [cell.text.strip() for cell in row.cells]
+            if any(cells):
+                rows.append(" | ".join(cells))
+        return "\n".join(rows).strip()
+
+    @staticmethod
+    def _iter_blocks(doc):
+        """Yield paragraph/table blocks in original document order."""
+        from docx.table import Table
+        from docx.text.paragraph import Paragraph
+
+        body = doc.element.body
+        for child in body.iterchildren():
+            tag = child.tag.lower()
+            if tag.endswith("}p"):
+                para = Paragraph(child, doc)
+                text = para.text.strip()
+                if text:
+                    yield text
+            elif tag.endswith("}tbl"):
+                table = Table(child, doc)
+                table_text = DOCXLoader._table_to_text(table)
+                if table_text:
+                    yield f"[TABLE]\n{table_text}\n[/TABLE]"
+
     @staticmethod  
     def load(file_path: str, filename: str, doc_id: str, clean_fn=None) -> List[Document]:  
-        log.info(f"[LOAD DOCX] {filename}")
+        log.info(f"[LOAD DOCX] {filename} — paragraphs + tables")
 
         try:  
             from docx import Document as DocxDocument
@@ -22,11 +52,12 @@ class DOCXLoader:
 
             buffer = []  
             buffer_len = 0
+            table_count = 0
 
-            for para in doc.paragraphs:  
-                text = para.text.strip()  
-                if not text:  
-                    continue
+            for block_text in DOCXLoader._iter_blocks(doc):
+                text = block_text.strip()
+                if text.startswith("[TABLE]"):
+                    table_count += 1
 
                 buffer.append(text)  
                 buffer_len += len(text)
@@ -74,7 +105,10 @@ class DOCXLoader:
                         )  
                     )
 
-            log.info(f"[LOAD DOCX] ✅ {filename} — {len(pages)} logical pages extracted")  
+            log.info(
+                f"[LOAD DOCX] ✅ {filename} — {len(pages)} logical pages extracted "
+                f"(tables={table_count})"
+            )
             return [p for p in pages if p.page_content.strip()]
 
         except Exception as e:  

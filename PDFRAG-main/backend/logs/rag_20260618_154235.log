@@ -1,0 +1,214 @@
+2026-06-18 15:42:38 | INFO     | document_loader      | DocumentLoader initialized — upload_dir: c:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\uploads
+2026-06-18 15:42:38 | INFO     | document_loader      | Supported formats: ['.pdf', '.docx']
+2026-06-18 15:42:38 | INFO     | chunker              | Chunker initialized — chunk_size: 1000 | overlap: 300
+2026-06-18 15:42:38 | INFO     | embedder             | Embedder initializing — endpoint: https://az-oai-collection.openai.azure.com/ | model: text-embedding-3-small
+2026-06-18 15:42:38 | INFO     | embedder             | Embedder ✅ initialized | max_workers: 10
+2026-06-18 15:42:38 | INFO     | vector_store         | VectorStore initializing — persist_dir: c:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\chroma_db
+2026-06-18 15:42:38 | INFO     | vector_store         | VectorStore ✅ Collection loaded — 94 existing vectors
+2026-06-18 15:42:38 | INFO     | memory_manager       | [MEMORY_MGR] Initializing conversation memory manager
+2026-06-18 15:42:38 | INFO     | memory_store         | [MEMORY_STORE] Initializing with Chroma DB at c:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\chroma_db
+2026-06-18 15:42:38 | INFO     | memory_store         | [MEMORY_STORE] ✅ Collections loaded — metadata: 20, summaries: 0
+2026-06-18 15:42:38 | INFO     | memory_store         | [MEMORY_STORE] ✅ Retrieved 20 groups
+2026-06-18 15:42:38 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Loaded 20 groups from storage
+2026-06-18 15:42:38 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Manager initialized
+2026-06-18 15:42:38 | INFO     | main                 | [STARTUP] Conversation memory manager initialized
+2026-06-18 15:42:39 | INFO     | context_resolver     | [RESOLVER] ✅ LLM classifier initialized
+2026-06-18 15:42:39 | INFO     | multi_group_processor | [MULTI_GROUP] ✅ Initialized with max_workers=5
+2026-06-18 15:42:39 | INFO     | background_summarizer | [BG_SUMMARIZER] Initialized with 3 workers
+2026-06-18 15:42:39 | INFO     | main                 | [STARTUP] Vector store ready — session started
+2026-06-18 15:42:39 | INFO     | main                 | [STARTUP] Conversation memory manager initialized
+2026-06-18 15:42:39 | DEBUG    | asyncio              | Using proactor: IocpProactor
+2026-06-18 15:43:11 | INFO     | app                  | [QUERY] ▶ 'compare slide wire bridge and meter bridge' | top_k=5 | temp=0.2 | override=None | retrieve_all=False
+2026-06-18 15:43:11 | INFO     | app                  | [QUERY] STEP 1 — Resolving query context
+2026-06-18 15:43:11 | INFO     | context_resolver     | [RESOLVER] Processing query: compare slide wire bridge and meter bridge
+2026-06-18 15:43:11 | INFO     | context_resolver     | [RESOLVER] ℹ️ No active_group_id provided (None)
+2026-06-18 15:43:11 | INFO     | context_resolver     | [RESOLVER] Using LLM classification
+2026-06-18 15:43:11 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Classifying: compare slide wire bridge and meter bridge
+2026-06-18 15:43:15 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Parsed response: multi_group | comparison
+2026-06-18 15:43:15 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Standalone query: Compare slide wire bridge and meter bridge.
+2026-06-18 15:43:15 | INFO     | llm_classifier       | [LLM_CLASSIFIER] ✅ Classified as:
+2026-06-18 15:43:15 | INFO     | llm_classifier       |   - dependency_type: multi_group
+2026-06-18 15:43:15 | INFO     | llm_classifier       |   - retrieval_intent: comparison
+2026-06-18 15:43:15 | INFO     | llm_classifier       |   - answer_source: document
+2026-06-18 15:43:15 | INFO     | llm_classifier       |   - retrieval_scope: specific
+2026-06-18 15:43:15 | INFO     | llm_classifier       |   - standalone_query: Compare slide wire bridge and meter bridge.
+2026-06-18 15:43:15 | INFO     | llm_classifier       |   - reasoning: The query explicitly asks to compare two distinct topics (slide wire bridge and meter bridge), which
+2026-06-18 15:43:15 | INFO     | context_resolver     | [RESOLVER] LLM: multi_group | comparison | belongs=False | answer_source=document | scope=specific
+2026-06-18 15:43:15 | INFO     | context_resolver     | [RESOLVER] Final standalone query: Compare slide wire bridge and meter bridge.
+2026-06-18 15:43:15 | INFO     | context_resolver     | [RESOLVER] Processing multi-group query
+2026-06-18 15:43:15 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Splitting multi-group into 2 sub-queries (PARALLEL)
+2026-06-18 15:43:15 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Submitting 2 topic generation tasks with 2 workers
+2026-06-18 15:43:15 | INFO     | llm_classifier       | [LLM_CLASSIFIER] [PARALLEL] Generating topic for sub-query 1/2
+2026-06-18 15:43:15 | INFO     | llm_classifier       | [LLM_CLASSIFIER] [PARALLEL] Generating topic for sub-query 2/2
+2026-06-18 15:43:17 | INFO     | llm_classifier       | [LLM_CLASSIFIER] [PARALLEL] ✅ Topic generated for sub-query 1: Rope Bridges
+2026-06-18 15:43:17 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Generated topic 1/2: Rope Bridges
+2026-06-18 15:43:18 | INFO     | llm_classifier       | [LLM_CLASSIFIER] [PARALLEL] ✅ Topic generated for sub-query 2: Physics Experiment
+2026-06-18 15:43:18 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Generated topic 2/2: Physics Experiment
+2026-06-18 15:43:18 | INFO     | llm_classifier       | [LLM_CLASSIFIER] ✅ Generated topics for all 2 sub-queries in parallel
+2026-06-18 15:43:18 | INFO     | context_resolver     | [RESOLVER] Split into 2 sub-queries
+2026-06-18 15:43:18 | INFO     | embedder             | [EMBED] Embedding 1 texts in 1 batch(es) | workers: 10
+2026-06-18 15:43:18 | DEBUG    | embedder             | [EMBED] Batch 1 — 1 texts (thread started)
+2026-06-18 15:43:18 | INFO     | embedder             | [EMBED] 📤 Batch 1 — Calling Azure OpenAI API for 1 chunks...
+2026-06-18 15:43:18 | INFO     | embedder             | [EMBED] ✅ Batch 1 — 1 texts embedded | dim: 1536 | Total: 1 chunks processed
+2026-06-18 15:43:18 | WARNING  | memory_store         | [MEMORY_STORE] No group summaries indexed yet
+2026-06-18 15:43:18 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Found 0 relevant groups
+2026-06-18 15:43:18 | INFO     | context_resolver     | [RESOLVER] Found 0 groups above threshold 0.3
+2026-06-18 15:43:18 | INFO     | context_resolver     | [RESOLVER] Found 0 relevant groups
+2026-06-18 15:43:18 | INFO     | context_resolver     | [RESOLVER] ✅ Context resolution complete
+2026-06-18 15:43:18 | INFO     | app                  | [QUERY] Standalone query: Compare slide wire bridge and meter bridge.
+2026-06-18 15:43:18 | INFO     | app                  | [QUERY] Intent 'comparison' — fetching ALL relevant chunks (not limited by top_k)
+2026-06-18 15:43:18 | INFO     | app                  | [QUERY] STEP 2 — Retrieving relevant chunks
+2026-06-18 15:43:18 | INFO     | app                  | [QUERY] Multi-group query — balanced retrieval across 2 subjects
+2026-06-18 15:43:18 | INFO     | multi_group_processor | [MULTI_GROUP] Balanced retrieval for 2 subjects (8 chunks each, intent=comparison)
+2026-06-18 15:43:18 | INFO     | parallel_executor    | [PARALLEL] Executing 2 subject-retrieve tasks in parallel with 2 workers
+2026-06-18 15:43:18 | INFO     | multi_group_processor | [MULTI_GROUP] Retrieving subject 1/2: slide wire bridge
+2026-06-18 15:43:18 | INFO     | retriever            | [RETRIEVER] Query: 'slide wire bridge' | top_k: 8 | get_all_relevant: False | intent: comparison | top_k_override: 8 | retrieve_all: False
+2026-06-18 15:43:18 | INFO     | multi_group_processor | [MULTI_GROUP] Retrieving subject 2/2: meter bridge
+2026-06-18 15:43:18 | INFO     | embedder             | [EMBED] Embedding query: 'slide wire bridge'
+2026-06-18 15:43:18 | INFO     | retriever            | [RETRIEVER] Query: 'meter bridge' | top_k: 8 | get_all_relevant: False | intent: comparison | top_k_override: 8 | retrieve_all: False
+2026-06-18 15:43:18 | INFO     | embedder             | [EMBED] Embedding query: 'meter bridge'
+2026-06-18 15:43:19 | INFO     | embedder             | [EMBED] ✅ Query embedded — dim: 1536
+2026-06-18 15:43:19 | INFO     | retriever            | [RETRIEVER] Top-K OVERRIDE active → using user top_k=8 (mode now 'comprehensive')
+2026-06-18 15:43:19 | INFO     | retriever            | [RETRIEVER] Intent 'comparison' → mode=comprehensive | top_k=8 | chunk_threshold=0.12
+2026-06-18 15:43:19 | INFO     | vector_store         | [STORE] Searching top-94 — total vectors: 94
+2026-06-18 15:43:19 | INFO     | vector_store         | [STORE] ✅ 94 hits returned | top score: 0.4667
+2026-06-18 15:43:19 | INFO     | retriever            | [RETRIEVER] Total vectors fetched: 94
+2026-06-18 15:43:19 | INFO     | retriever            | [RETRIEVER] Doc score — electricity.pdf: 0.364
+2026-06-18 15:43:19 | INFO     | retriever            | [RETRIEVER] ✅ RELEVANT — electricity.pdf (score: 0.364)
+2026-06-18 15:43:19 | INFO     | retriever            | [RETRIEVER] COMPREHENSIVE — electricity.pdf → 8 chunks (threshold 0.12, cap 8)
+2026-06-18 15:43:19 | INFO     | retriever            | [RETRIEVER] Total returned: 8
+2026-06-18 15:43:19 | INFO     | parallel_executor    | [PARALLEL] Completed 1/2 subject-retrieve tasks
+2026-06-18 15:43:19 | INFO     | embedder             | [EMBED] ✅ Query embedded — dim: 1536
+2026-06-18 15:43:19 | INFO     | retriever            | [RETRIEVER] Top-K OVERRIDE active → using user top_k=8 (mode now 'comprehensive')
+2026-06-18 15:43:19 | INFO     | retriever            | [RETRIEVER] Intent 'comparison' → mode=comprehensive | top_k=8 | chunk_threshold=0.12
+2026-06-18 15:43:19 | INFO     | vector_store         | [STORE] Searching top-94 — total vectors: 94
+2026-06-18 15:43:19 | INFO     | vector_store         | [STORE] ✅ 94 hits returned | top score: 0.5794
+2026-06-18 15:43:19 | INFO     | retriever            | [RETRIEVER] Total vectors fetched: 94
+2026-06-18 15:43:19 | INFO     | retriever            | [RETRIEVER] Doc score — electricity.pdf: 0.477
+2026-06-18 15:43:19 | INFO     | retriever            | [RETRIEVER] ✅ RELEVANT — electricity.pdf (score: 0.477)
+2026-06-18 15:43:19 | INFO     | retriever            | [RETRIEVER] COMPREHENSIVE — electricity.pdf → 8 chunks (threshold 0.12, cap 8)
+2026-06-18 15:43:19 | INFO     | retriever            | [RETRIEVER] Total returned: 8
+2026-06-18 15:43:19 | INFO     | parallel_executor    | [PARALLEL] Completed 2/2 subject-retrieve tasks
+2026-06-18 15:43:19 | INFO     | parallel_executor    | [PARALLEL] ✅ All 2 subject-retrieve tasks completed
+2026-06-18 15:43:19 | INFO     | multi_group_processor | [MULTI_GROUP] ✅ Merged to 9 unique chunks across subjects
+2026-06-18 15:43:19 | INFO     | app                  | [QUERY] Retrieved 9 chunks (multi-group balanced)
+2026-06-18 15:43:19 | INFO     | app                  | [QUERY] STEP 3 — Generating answer with memory context
+2026-06-18 15:43:19 | INFO     | generator            | [GENERATOR] Dynamic context strategy: turn_count=1
+2026-06-18 15:43:28 | INFO     | generator            | [GENERATOR] ✅ Answer generated with memory summary
+2026-06-18 15:43:28 | INFO     | app                  | [QUERY] ✅ Answer generated successfully
+2026-06-18 15:43:28 | INFO     | app                  | [QUERY] STEP 4 — Storing turn in conversation memory
+2026-06-18 15:43:28 | WARNING  | app                  | [QUERY] ⚠️ No active group — turn not saved to memory
+2026-06-18 15:43:54 | INFO     | app                  | [QUERY] ▶ 'what is the SI unit of resistance' | top_k=5 | temp=0.2 | override=None | retrieve_all=False
+2026-06-18 15:43:54 | INFO     | app                  | [QUERY] STEP 1 — Resolving query context
+2026-06-18 15:43:54 | INFO     | context_resolver     | [RESOLVER] Processing query: what is the SI unit of resistance
+2026-06-18 15:43:54 | INFO     | context_resolver     | [RESOLVER] ℹ️ No active_group_id provided (None)
+2026-06-18 15:43:54 | INFO     | context_resolver     | [RESOLVER] Using LLM classification
+2026-06-18 15:43:54 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Classifying: what is the SI unit of resistance
+2026-06-18 15:43:56 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Parsed response: independent | factual
+2026-06-18 15:43:56 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Standalone query: What is the SI unit of resistance?
+2026-06-18 15:43:56 | INFO     | llm_classifier       | [LLM_CLASSIFIER] ✅ Classified as:
+2026-06-18 15:43:56 | INFO     | llm_classifier       |   - dependency_type: independent
+2026-06-18 15:43:56 | INFO     | llm_classifier       |   - retrieval_intent: factual
+2026-06-18 15:43:56 | INFO     | llm_classifier       |   - answer_source: document
+2026-06-18 15:43:56 | INFO     | llm_classifier       |   - retrieval_scope: specific
+2026-06-18 15:43:56 | INFO     | llm_classifier       |   - standalone_query: What is the SI unit of resistance?
+2026-06-18 15:43:56 | INFO     | llm_classifier       |   - reasoning: The query is a direct, self-contained question asking for the SI unit of resistance, which is a spec
+2026-06-18 15:43:56 | INFO     | context_resolver     | [RESOLVER] LLM: independent | factual | belongs=False | answer_source=document | scope=specific
+2026-06-18 15:43:56 | INFO     | context_resolver     | [RESOLVER] Final standalone query: What is the SI unit of resistance?
+2026-06-18 15:43:56 | INFO     | context_resolver     | [RESOLVER] Will create new group: resistance
+2026-06-18 15:43:56 | INFO     | embedder             | [EMBED] Embedding 1 texts in 1 batch(es) | workers: 10
+2026-06-18 15:43:56 | DEBUG    | embedder             | [EMBED] Batch 1 — 1 texts (thread started)
+2026-06-18 15:43:56 | INFO     | embedder             | [EMBED] 📤 Batch 1 — Calling Azure OpenAI API for 1 chunks...
+2026-06-18 15:43:57 | INFO     | embedder             | [EMBED] ✅ Batch 1 — 1 texts embedded | dim: 1536 | Total: 1 chunks processed
+2026-06-18 15:43:57 | WARNING  | memory_store         | [MEMORY_STORE] No group summaries indexed yet
+2026-06-18 15:43:57 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Found 0 relevant groups
+2026-06-18 15:43:57 | INFO     | context_resolver     | [RESOLVER] Found 0 groups above threshold 0.3
+2026-06-18 15:43:57 | INFO     | context_resolver     | [RESOLVER] Found 0 relevant groups
+2026-06-18 15:43:57 | INFO     | context_resolver     | [RESOLVER] INDEPENDENT query — creating NEW group (new topic)
+2026-06-18 15:43:57 | INFO     | memory_store         | [MEMORY_STORE] ✅ Created group: group_480823b7
+2026-06-18 15:43:57 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Created group group_480823b7: resistance
+2026-06-18 15:43:57 | INFO     | context_resolver     | [RESOLVER] ✅ Created new topic group group_480823b7: resistance
+2026-06-18 15:43:57 | INFO     | context_resolver     | [RESOLVER] ✅ Context resolution complete
+2026-06-18 15:43:57 | INFO     | app                  | [QUERY] Standalone query: What is the SI unit of resistance?
+2026-06-18 15:43:57 | INFO     | app                  | [QUERY] STEP 2 — Retrieving relevant chunks
+2026-06-18 15:43:57 | INFO     | retriever            | [RETRIEVER] Query: 'What is the SI unit of resistance?' | top_k: 5 | get_all_relevant: False | intent: factual | top_k_override: None | retrieve_all: False
+2026-06-18 15:43:57 | INFO     | embedder             | [EMBED] Embedding query: 'What is the SI unit of resistance?'
+2026-06-18 15:43:58 | INFO     | embedder             | [EMBED] ✅ Query embedded — dim: 1536
+2026-06-18 15:43:58 | INFO     | retriever            | [RETRIEVER] Intent 'factual' → mode=top_k | top_k=5 | chunk_threshold=0.2
+2026-06-18 15:43:58 | INFO     | vector_store         | [STORE] Searching top-94 — total vectors: 94
+2026-06-18 15:43:58 | INFO     | vector_store         | [STORE] ✅ 94 hits returned | top score: 0.6279
+2026-06-18 15:43:58 | INFO     | retriever            | [RETRIEVER] Total vectors fetched: 94
+2026-06-18 15:43:58 | INFO     | retriever            | [RETRIEVER] Doc score — electricity.pdf: 0.548
+2026-06-18 15:43:58 | INFO     | retriever            | [RETRIEVER] ✅ RELEVANT — electricity.pdf (score: 0.548)
+2026-06-18 15:43:58 | INFO     | retriever            | [RETRIEVER] TOP_K — electricity.pdf → 5 chunks (top 5, threshold 0.2)
+2026-06-18 15:43:58 | INFO     | retriever            | [RETRIEVER] Total returned: 5
+2026-06-18 15:43:58 | INFO     | app                  | [QUERY] Retrieved 5 chunks
+2026-06-18 15:43:58 | INFO     | app                  | [QUERY] STEP 3 — Generating answer with memory context
+2026-06-18 15:43:58 | INFO     | generator            | [GENERATOR] Dynamic context strategy: turn_count=0
+2026-06-18 15:44:00 | INFO     | generator            | [GENERATOR] ✅ Answer generated with memory summary
+2026-06-18 15:44:00 | INFO     | app                  | [QUERY] ✅ Answer generated successfully
+2026-06-18 15:44:00 | INFO     | app                  | [QUERY] STEP 4 — Storing turn in conversation memory
+2026-06-18 15:44:00 | INFO     | memory_store         | [MEMORY_STORE] ✅ Updated group: group_480823b7
+2026-06-18 15:44:00 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Added turn turn_2556e89b to group group_480823b7
+2026-06-18 15:44:00 | INFO     | app                  | [QUERY] ✅ Turn saved to group group_480823b7
+2026-06-18 15:44:00 | INFO     | app                  | [QUERY/STREAM] ▶ 'summarize the whole document' | override=None | retrieve_all=False
+2026-06-18 15:44:00 | INFO     | app                  | [QUERY] STEP 1 — Resolving query context
+2026-06-18 15:44:00 | INFO     | context_resolver     | [RESOLVER] Processing query: summarize the whole document
+2026-06-18 15:44:00 | INFO     | context_resolver     | [RESOLVER] ℹ️ No active_group_id provided (None)
+2026-06-18 15:44:00 | INFO     | context_resolver     | [RESOLVER] Using LLM classification
+2026-06-18 15:44:00 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Classifying: summarize the whole document
+2026-06-18 15:44:02 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Parsed response: independent | summary
+2026-06-18 15:44:02 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Standalone query: Summarize the entire electricity.pdf document.
+2026-06-18 15:44:02 | INFO     | llm_classifier       | [LLM_CLASSIFIER] ✅ Classified as:
+2026-06-18 15:44:02 | INFO     | llm_classifier       |   - dependency_type: independent
+2026-06-18 15:44:02 | INFO     | llm_classifier       |   - retrieval_intent: summary
+2026-06-18 15:44:02 | INFO     | llm_classifier       |   - answer_source: document
+2026-06-18 15:44:02 | INFO     | llm_classifier       |   - retrieval_scope: whole_document
+2026-06-18 15:44:02 | INFO     | llm_classifier       |   - standalone_query: Summarize the entire electricity.pdf document.
+2026-06-18 15:44:02 | INFO     | llm_classifier       |   - reasoning: The user requests a comprehensive summary of the entire loaded document, which is a clear, self-cont
+2026-06-18 15:44:02 | INFO     | context_resolver     | [RESOLVER] LLM: independent | summary | belongs=False | answer_source=document | scope=whole_document
+2026-06-18 15:44:02 | INFO     | context_resolver     | [RESOLVER] Final standalone query: Summarize the entire electricity.pdf document.
+2026-06-18 15:44:02 | INFO     | context_resolver     | [RESOLVER] Will create new group: Electricity Document Overview
+2026-06-18 15:44:02 | INFO     | embedder             | [EMBED] Embedding 1 texts in 1 batch(es) | workers: 10
+2026-06-18 15:44:02 | DEBUG    | embedder             | [EMBED] Batch 1 — 1 texts (thread started)
+2026-06-18 15:44:02 | INFO     | embedder             | [EMBED] 📤 Batch 1 — Calling Azure OpenAI API for 1 chunks...
+2026-06-18 15:44:03 | INFO     | embedder             | [EMBED] ✅ Batch 1 — 1 texts embedded | dim: 1536 | Total: 1 chunks processed
+2026-06-18 15:44:03 | WARNING  | memory_store         | [MEMORY_STORE] No group summaries indexed yet
+2026-06-18 15:44:03 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Found 0 relevant groups
+2026-06-18 15:44:03 | INFO     | context_resolver     | [RESOLVER] Found 0 groups above threshold 0.3
+2026-06-18 15:44:03 | INFO     | context_resolver     | [RESOLVER] Found 0 relevant groups
+2026-06-18 15:44:03 | INFO     | context_resolver     | [RESOLVER] INDEPENDENT query — creating NEW group (new topic)
+2026-06-18 15:44:03 | INFO     | memory_store         | [MEMORY_STORE] ✅ Created group: group_91de2b85
+2026-06-18 15:44:03 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Created group group_91de2b85: Electricity Document Overview
+2026-06-18 15:44:03 | INFO     | context_resolver     | [RESOLVER] ✅ Created new topic group group_91de2b85: Electricity Document Overview
+2026-06-18 15:44:03 | INFO     | context_resolver     | [RESOLVER] ✅ Context resolution complete
+2026-06-18 15:44:03 | INFO     | app                  | [QUERY] Standalone query: Summarize the entire electricity.pdf document.
+2026-06-18 15:44:03 | INFO     | app                  | [QUERY] Whole-document scope detected for 'summary' — retrieving ALL chunks automatically
+2026-06-18 15:44:03 | INFO     | app                  | [QUERY] Intent 'summary' — whole-document retrieve_all active
+2026-06-18 15:44:03 | INFO     | app                  | [QUERY] STEP 2 — Retrieving relevant chunks
+2026-06-18 15:44:03 | INFO     | retriever            | [RETRIEVER] Query: 'Summarize the entire electricity.pdf document.' | top_k: 5 | get_all_relevant: False | intent: summary | top_k_override: None | retrieve_all: True
+2026-06-18 15:44:03 | INFO     | embedder             | [EMBED] Embedding query: 'Summarize the entire electricity.pdf document.'
+2026-06-18 15:44:03 | INFO     | embedder             | [EMBED] ✅ Query embedded — dim: 1536
+2026-06-18 15:44:03 | INFO     | vector_store         | [STORE] Searching top-94 — total vectors: 94
+2026-06-18 15:44:03 | INFO     | vector_store         | [STORE] ✅ 94 hits returned | top score: 0.3981
+2026-06-18 15:44:03 | INFO     | retriever            | [RETRIEVER] RETRIEVE-ALL (MAX) → returning all 94 chunks (no threshold, no doc filter)
+2026-06-18 15:44:03 | INFO     | app                  | [QUERY] Retrieved 94 chunks
+2026-06-18 15:44:03 | INFO     | generator            | [GENERATOR] Map-reduce (summary): 94 chunks → 10 parallel batches (size 10)
+2026-06-18 15:44:03 | INFO     | parallel_executor    | [PARALLEL] Executing 10 map-extract tasks in parallel with 10 workers
+2026-06-18 15:44:11 | INFO     | parallel_executor    | [PARALLEL] Completed 1/10 map-extract tasks
+2026-06-18 15:44:11 | INFO     | parallel_executor    | [PARALLEL] Completed 2/10 map-extract tasks
+2026-06-18 15:44:11 | INFO     | parallel_executor    | [PARALLEL] Completed 3/10 map-extract tasks
+2026-06-18 15:44:12 | INFO     | parallel_executor    | [PARALLEL] Completed 4/10 map-extract tasks
+2026-06-18 15:44:12 | INFO     | parallel_executor    | [PARALLEL] Completed 5/10 map-extract tasks
+2026-06-18 15:44:12 | INFO     | parallel_executor    | [PARALLEL] Completed 6/10 map-extract tasks
+2026-06-18 15:44:13 | INFO     | parallel_executor    | [PARALLEL] Completed 7/10 map-extract tasks
+2026-06-18 15:44:13 | INFO     | parallel_executor    | [PARALLEL] Completed 8/10 map-extract tasks
+2026-06-18 15:44:13 | INFO     | parallel_executor    | [PARALLEL] Completed 9/10 map-extract tasks
+2026-06-18 15:44:14 | INFO     | parallel_executor    | [PARALLEL] Completed 10/10 map-extract tasks
+2026-06-18 15:44:14 | INFO     | parallel_executor    | [PARALLEL] ✅ All 10 map-extract tasks completed
+2026-06-18 15:44:14 | INFO     | generator            | [GENERATOR] Stream map-reduce: 10 batches returned content — streaming reduce
+2026-06-18 15:44:22 | INFO     | generator            | [GENERATOR] ✅ Streamed answer generated with memory summary
+2026-06-18 15:44:22 | INFO     | app                  | [QUERY] STEP 4 — Storing turn in conversation memory
+2026-06-18 15:44:22 | INFO     | memory_store         | [MEMORY_STORE] ✅ Updated group: group_91de2b85
+2026-06-18 15:44:22 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Added turn turn_cd24655a to group group_91de2b85
+2026-06-18 15:44:22 | INFO     | app                  | [QUERY] ✅ Turn saved to group group_91de2b85

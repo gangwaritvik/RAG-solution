@@ -20,15 +20,19 @@ CHUNK_RELEVANCE_THRESHOLD = 0.20  # default min score for individual chunks (fac
 #   threshold = min similarity score a chunk must have to be included
 INTENT_RETRIEVAL_CONFIG = {
     # Precise, single-fact answers — keep tight & relevant
-    "factual":    {"mode": "top_k",         "top_k": 5,    "threshold": 0.20},
-    # "List/enumerate all X" — must scan the whole document, no filtering
-    "extraction": {"mode": "exhaustive",    "top_k": None, "threshold": 0.0},
-    # Whole-topic synthesis — gather the most relevant chunks (capped to avoid huge contexts)
-    "summary":    {"mode": "comprehensive", "top_k": 15,   "threshold": 0.10},
+    "factual":    {"mode": "top_k",         "top_k": 10,   "threshold": 0.20},
+    # Targeted synthesis — summarize a specific topic/section
+    "targeted_summary": {"mode": "comprehensive", "top_k": 30,   "threshold": 0.10},
+    # Global synthesis — summarize whole document/corpus
+    "global_summary":   {"mode": "exhaustive",    "top_k": None, "threshold": 0.0},
+    # Targeted extraction — extract a specific table/list/subset
+    "targeted_extraction": {"mode": "comprehensive", "top_k": 30,   "threshold": 0.05},
+    # Global extraction — list/enumerate ALL matching items across the document
+    "global_extraction":   {"mode": "exhaustive",    "top_k": None, "threshold": 0.0},
     # Reasoning over the topic — same breadth as summary
-    "analysis":   {"mode": "comprehensive", "top_k": 15,   "threshold": 0.10},
+    "analysis":   {"mode": "comprehensive", "top_k": 30,   "threshold": 0.10},
     # Comparing items — broad coverage of both sides, but capped
-    "comparison": {"mode": "comprehensive", "top_k": 15,   "threshold": 0.12},
+    "comparison": {"mode": "comprehensive", "top_k": 30,   "threshold": 0.12},
     # Ambiguous — minimal retrieval (clarification usually generated instead)
     "ambiguous":  {"mode": "top_k",         "top_k": 3,    "threshold": 0.20},
 }
@@ -37,13 +41,35 @@ INTENT_RETRIEVAL_CONFIG = {
 DEFAULT_INTENT_CONFIG = {"mode": "top_k", "top_k": 5, "threshold": CHUNK_RELEVANCE_THRESHOLD}
 
 
+def _filename_filter(restrict_filenames):
+    """Build a ChromaDB where-filter pinning search to one or more filenames.
+
+    Accepts None, a single filename (str), or a list of filenames (N-file scoping).
+    Returns None when empty, a single-equality filter for one file, or an ``$in``
+    filter for N files — so a sub-query that targets any subset of the loaded
+    documents searches exactly those files and no others.
+    """
+    if not restrict_filenames:
+        return None
+    if isinstance(restrict_filenames, str):
+        files = [restrict_filenames]
+    else:
+        files = [str(f).strip() for f in restrict_filenames if str(f).strip()]
+    files = list(dict.fromkeys(files))  # de-dup, preserve order
+    if not files:
+        return None
+    if len(files) == 1:
+        return {"filename": files[0]}
+    return {"filename": {"$in": files}}
+
+
 class Retriever:  
     def __init__(self, embedder: Embedder, vector_store: VectorStore):  
         self.embedder     = embedder  
         self.vector_store = vector_store
 
-    def retrieve(self, query: str, top_k: int = TOP_K, get_all_relevant: bool = False, retrieval_intent: str = None, top_k_override: int = None, retrieve_all: bool = False):
-        log.info(f"[RETRIEVER] Query: '{query[:60]}' | top_k: {top_k} | get_all_relevant: {get_all_relevant} | intent: {retrieval_intent} | top_k_override: {top_k_override} | retrieve_all: {retrieve_all}")
+    def retrieve(self, query: str, top_k: int = TOP_K, get_all_relevant: bool = False, retrieval_intent: str = None, top_k_override: int = None, retrieve_all: bool = False, restrict_filenames=None):
+        log.info(f"[RETRIEVER] Query: '{query[:60]}' | top_k: {top_k} | get_all_relevant: {get_all_relevant} | intent: {retrieval_intent} | top_k_override: {top_k_override} | retrieve_all: {retrieve_all} | restrict_filenames: {restrict_filenames}")
 
         query_vector = self.embedder.embed_query(query)
         total        = self.vector_store.count
@@ -52,11 +78,16 @@ class Retriever:
             log.warning("[RETRIEVER] Vector store is empty")
             return []
 
+        # Per-subject document pinning: when a sub-query targets specific file(s), the
+        # vector search is restricted to those file(s) so the subject never pulls chunks
+        # from unrelated documents. Supports ONE file or N files (ChromaDB $in).
+        where_filter = _filename_filter(restrict_filenames)
+
         # ── MAX / retrieve-all: return EVERY chunk in the store, ranked by similarity,
         # with NO threshold and NO document-relevance filtering. This is the explicit
         # "use all chunks" mode triggered by the frontend MAX toggle. ──
         if retrieve_all:
-            all_hits = self.vector_store.search(query_vector, top_k=total)
+            all_hits = self.vector_store.search(query_vector, top_k=total, where=where_filter)
             log.info(f"[RETRIEVER] RETRIEVE-ALL (MAX) → returning all {len(all_hits)} chunks (no threshold, no doc filter)")
             return all_hits
 
@@ -80,7 +111,7 @@ class Retriever:
             f"top_k={intent_top_k} | chunk_threshold={chunk_threshold}"
         )
         # ── Step 1: Fetch ALL vectors ──  
-        all_hits = self.vector_store.search(query_vector, top_k=total)  
+        all_hits = self.vector_store.search(query_vector, top_k=total, where=where_filter)  
         log.info(f"[RETRIEVER] Total vectors fetched: {len(all_hits)}")
 
         # ── Step 2: Group all hits by document ──  
@@ -138,17 +169,17 @@ class Retriever:
                 # COMPREHENSIVE MODE: Get chunks above the intent's threshold, ordered by
                 # similarity, then cap to the intent's top_k so we don't send an oversized
                 # context to the LLM. hits are already sorted best-first.
-                selected = [h for h in hits if h.get("score", 0) >= chunk_threshold]
+                above = [h for h in hits if h.get("score", 0) >= chunk_threshold]
                 # Apply the cap when the intent defines one OR a user override is active
                 # (an exhaustive intent downgraded by override has cfg["top_k"] is None).
-                if cfg["top_k"] is not None or (top_k_override is not None and top_k_override > 0):
-                    selected = selected[:intent_top_k]
+                apply_cap = cfg["top_k"] is not None or (top_k_override is not None and top_k_override > 0)
+                selected = above[:intent_top_k] if apply_cap else above
                 log.info(f"[RETRIEVER] COMPREHENSIVE — {fname} → {len(selected)} chunks (threshold {chunk_threshold}, cap {intent_top_k})")
                 final = selected
             else:
                 # TOP_K MODE: Get top_k chunks by similarity above threshold
-                selected = [h for h in hits if h.get("score", 0) >= chunk_threshold]
-                selected = selected[:intent_top_k]
+                above = [h for h in hits if h.get("score", 0) >= chunk_threshold]
+                selected = above[:intent_top_k]
                 if len(selected) < 3:
                     selected = hits[:intent_top_k]
                 log.info(f"[RETRIEVER] TOP_K — {fname} → {len(selected)} chunks (top {intent_top_k}, threshold {chunk_threshold})")
