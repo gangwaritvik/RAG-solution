@@ -57,8 +57,18 @@ class ConversationMemoryManager:
         group_id = f"group_{uuid.uuid4().hex[:8]}"
         group = self.group_memory.create_group(group_id, topic)
         
-        # Persist immediately
-        self.memory_store.save_group(group)
+        # Persist immediately. A persistence failure must NOT propagate — the group is
+        # already created in memory and the caller needs a valid group to file the turn
+        # into. It will be re-persisted on the next add_conversation_turn (which also
+        # saves the group), so we swallow a transient save error instead of leaving the
+        # caller without a group (which would misfile or drop the turn).
+        try:
+            self.memory_store.save_group(group)
+        except Exception as e:
+            log.warning(
+                f"[MEMORY_MGR] ⚠️ Group {group_id} created in memory but initial persist "
+                f"failed ({e}); it will be persisted on the next turn"
+            )
         
         log.info(f"[MEMORY_MGR] ✅ Created group {group_id}: {topic}")
         return group
@@ -148,7 +158,8 @@ class ConversationMemoryManager:
         self, 
         group_id: str, 
         summary: str,
-        summary_embedding: Optional[List[float]] = None
+        summary_embedding: Optional[List[float]] = None,
+        summarized_count: Optional[int] = None
     ) -> bool:
         """
         Update a group's summary and optional embedding.
@@ -157,11 +168,12 @@ class ConversationMemoryManager:
             group_id: The group ID
             summary: The new summary text
             summary_embedding: Optional embedding vector for semantic search
+            summarized_count: How many recent turns were summarized (clear only these)
             
         Returns:
             True if successful, False otherwise
         """
-        if self.group_memory.update_group_summary(group_id, summary, summary_embedding):
+        if self.group_memory.update_group_summary(group_id, summary, summary_embedding, summarized_count):
             group = self.group_memory.get_group(group_id)
             if group:
                 self.memory_store.save_group(group)
@@ -171,6 +183,10 @@ class ConversationMemoryManager:
         else:
             log.warning(f"[MEMORY_MGR] ⚠️ Group not found: {group_id}")
             return False
+
+    def snapshot_recent_turns(self, group_id: str):
+        """Atomically snapshot a group's unsummarized turns + count (see GroupMemory)."""
+        return self.group_memory.snapshot_recent_turns(group_id)
     
     def update_group_summary_with_embedding(
         self,
@@ -304,21 +320,6 @@ class ConversationMemoryManager:
         
         if result:
             log.info(f"[MEMORY_MGR] ✅ Deleted group {group_id}")
-        
-        return result
-    
-    def clear_all(self) -> bool:
-        """
-        Clear all conversation memory (testing/reset).
-        
-        Returns:
-            True if successful, False otherwise
-        """
-        self.group_memory.clear_all()
-        result = self.memory_store.clear_all()
-        
-        if result:
-            log.info("[MEMORY_MGR] ✅ All conversation memory cleared")
         
         return result
     

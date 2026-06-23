@@ -11,6 +11,7 @@ It no longer runs an HTTP server itself — serving is handled by uvicorn + Fast
 import os
 import sys
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -62,8 +63,20 @@ bg_summarizer = BackgroundSummarizer(
 )
 
 # ── Track ingestion status independently from vector count ──
-ingestion_status = {}  # {filename: {status: 'processing'|'completed', chunks: 0}}
+ingestion_status = {}  # {filename: {status: 'processing'|'completed'|'failed', chunks: 0}}
 ingestion_lock = threading.Lock()
+
+# Serialize ChromaDB writes. Chroma is SQLite-backed and can raise "database is locked"
+# under concurrent writers, and the vector_store filename cache is a plain set. Holding
+# this lock ONLY around the store step keeps the slow load/chunk/embed work of different
+# files fully concurrent while making the actual write single-writer-safe.
+_store_lock = threading.Lock()
+
+# Cap how many files ingest CONCURRENTLY. Each file's embed step already fans out to
+# ~10 workers internally, so unbounded file concurrency could stampede the Azure
+# embedding endpoint into rate-limiting. A small bound overlaps the slow per-file steps
+# (one file embeds while another loads/chunks) without flooding the API.
+INGEST_MAX_FILE_WORKERS = 3
 
 # ── Clear stale vectors on startup ──  
 # vector_store.clear()  # Disabled: Don't clear on startup to preserve state
@@ -98,78 +111,118 @@ def get_chunker(mode: str):
 #  INGEST BACKGROUND WORKER (module-level)
 # ══════════════════════════════════════════════════════════════════════
 def process_ingest_background(files, chunk_mode):
-    """Background-thread worker for file ingestion.
+    """Background-thread worker: ingest all uploaded files CONCURRENTLY.
 
-    Loads → chunks → embeds → stores each uploaded file, updating ingestion_status
-    as it goes. Called by the FastAPI /ingest endpoint in a daemon thread.
+    Each file runs its OWN load → chunk → embed → store pipeline in a worker thread
+    (bounded by INGEST_MAX_FILE_WORKERS), so the chunking/embedding of different files
+    OVERLAP instead of running strictly one-after-another. ChromaDB writes are
+    serialized via ``_store_lock`` and each file's errors are isolated, so one bad file
+    neither corrupts the store nor stalls the others.
+
+    NOTE: within a SINGLE file, the default recursive/fixed/sliding chunkers are pure
+    Python (GIL-bound), so threading one file's chunk step gives no speedup — the win
+    here is across files. The semantic chunker (which makes embedding calls) overlaps
+    naturally with other files under this model.
     """
     log.info(f"[INGEST_BG] Starting background processing for {len(files)} file(s)")
 
+    all_results = []
+    max_workers = max(1, min(len(files), INGEST_MAX_FILE_WORKERS))
     try:
-        active_chunker = get_chunker(chunk_mode)
-        results = []
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_name = {
+                executor.submit(_ingest_one_file, filename, content, chunk_mode): filename
+                for filename, content in files
+            }
+            for future in as_completed(future_to_name):
+                name = future_to_name[future]
+                try:
+                    all_results.extend(future.result())
+                except Exception as e:
+                    log.error(f"[INGEST_BG] ❌ Worker for {name} crashed — {type(e).__name__}: {e}", exc_info=True)
 
-        for filename, content in files:
-            log.info(f"[INGEST_BG] Processing: {filename} ({len(content)} bytes)")
-
-            # Step 1 — Load
-            log.info(f"[INGEST_BG] STEP 1 — Loading {filename}")
-            doc_results = loader.load_documents([(filename, content)])
-
-            # Step 2 — Chunk
-            log.info(f"[INGEST_BG] STEP 2 — Chunking {filename} (mode: {chunk_mode})")
-            chunked = active_chunker.chunk_documents(doc_results)
-
-            for doc in chunked:
-                doc_filename = doc.get('filename', filename)
-
-                if not doc.get("chunks"):
-                    log.warning(f"[INGEST_BG] ⚠️ No chunks for {doc_filename}")
-                    with ingestion_lock:
-                        ingestion_status[doc_filename] = {"status": "completed", "chunks": 0}
-                    continue
-
-                texts = [c.page_content for c in doc["chunks"]]
-                total_chunks = len(texts)
-
-                log.info(f"[INGEST_BG] STEP 2.5 — Created {total_chunks} chunks from {doc.get('filename')}")
-                for i, chunk in enumerate(doc["chunks"], 1):
-                    preview = chunk.page_content[:100].replace('\n', ' ')
-                    log.debug(f"[INGEST_BG]   Chunk {i}/{total_chunks}: {preview}...")
-
-                # Step 3 — Embed
-                log.info(f"[INGEST_BG] STEP 3 — Embedding {total_chunks} chunks from {doc.get('filename')} (batch_size: {EMBEDDING_BATCH_SIZE})")
-                vecs = embedder.embed_texts(texts, batch_size=EMBEDDING_BATCH_SIZE)
-                log.info(f"[INGEST_BG] ✅ Embedded {len(vecs)} vectors")
-
-                # Step 4 — Store
-                log.info(f"[INGEST_BG] STEP 4 — Storing {len(vecs)} vectors in ChromaDB")
-                meta = [
-                    {
-                        "text":        c.page_content,
-                        "filename":    doc["filename"],
-                        "doc_id":      doc["doc_id"],
-                        "chunk_index": c.metadata.get("chunk_index"),
-                        "page":        c.metadata.get("page"),
-                        "chunk_type":  c.metadata.get("chunk_type", chunk_mode),
-                    }
-                    for c in doc["chunks"]
-                ]
-                vector_store.add(vecs, meta)
-
-                results.append({
-                    "filename":     doc["filename"],
-                    "total_pages":  doc["total_pages"],
-                    "total_chunks": doc["total_chunks"],
-                    "chunk_mode":   chunk_mode,
-                    "errors":       doc["errors"],
-                })
-                log.info(f"[INGEST_BG] ✅ {doc['filename']} — ingested successfully")
-
-                with ingestion_lock:
-                    ingestion_status[doc['filename']] = {"status": "completed", "chunks": total_chunks}
-
-        log.info(f"[INGEST_BG] ✅ Complete — {len(results)} doc(s) | {vector_store.count} total vectors")
+        log.info(f"[INGEST_BG] ✅ Complete — {len(all_results)} doc(s) | {vector_store.count} total vectors")
 
     except Exception as e:
         log.error(f"[INGEST_BG] ❌ FATAL — {type(e).__name__}: {e}", exc_info=True)
+
+
+def _ingest_one_file(filename, content, chunk_mode):
+    """Run the full load → chunk → embed → store pipeline for ONE file (worker thread).
+
+    Returns the list of per-document result dicts (usually one). On any failure it marks
+    the file 'failed' in ingestion_status — so a bad/unsupported file surfaces an error
+    instead of hanging as a perpetual 'processing' spinner — and returns [] without
+    affecting the other files being ingested in parallel.
+    """
+    file_results = []
+    try:
+        # Each thread gets its own chunker instance (or the stateless shared recursive
+        # singleton) so there is no shared mutable chunker state across files.
+        active_chunker = get_chunker(chunk_mode)
+
+        log.info(f"[INGEST_BG] Processing: {filename} ({len(content)} bytes)")
+
+        # Step 1 — Load
+        log.info(f"[INGEST_BG] STEP 1 — Loading {filename}")
+        doc_results = loader.load_documents([(filename, content)])
+
+        # Step 2 — Chunk (overlaps with other files' steps)
+        log.info(f"[INGEST_BG] STEP 2 — Chunking {filename} (mode: {chunk_mode})")
+        chunked = active_chunker.chunk_documents(doc_results)
+
+        for doc in chunked:
+            doc_filename = doc.get('filename', filename)
+
+            if not doc.get("chunks"):
+                log.warning(f"[INGEST_BG] ⚠️ No chunks for {doc_filename}")
+                with ingestion_lock:
+                    ingestion_status[doc_filename] = {"status": "completed", "chunks": 0}
+                continue
+
+            texts = [c.page_content for c in doc["chunks"]]
+            total_chunks = len(texts)
+
+            log.info(f"[INGEST_BG] STEP 2.5 — Created {total_chunks} chunks from {doc_filename}")
+
+            # Step 3 — Embed (embedder fans out internally)
+            log.info(f"[INGEST_BG] STEP 3 — Embedding {total_chunks} chunks from {doc_filename} (batch_size: {EMBEDDING_BATCH_SIZE})")
+            vecs = embedder.embed_texts(texts, batch_size=EMBEDDING_BATCH_SIZE)
+            log.info(f"[INGEST_BG] ✅ Embedded {len(vecs)} vectors")
+
+            # Step 4 — Store (serialized: one writer at a time)
+            log.info(f"[INGEST_BG] STEP 4 — Storing {len(vecs)} vectors in ChromaDB")
+            meta = [
+                {
+                    "text":        c.page_content,
+                    "filename":    doc["filename"],
+                    "doc_id":      doc["doc_id"],
+                    "chunk_index": c.metadata.get("chunk_index"),
+                    "page":        c.metadata.get("page"),
+                    "chunk_type":  c.metadata.get("chunk_type", chunk_mode),
+                }
+                for c in doc["chunks"]
+            ]
+            with _store_lock:
+                vector_store.add(vecs, meta)
+
+            file_results.append({
+                "filename":     doc["filename"],
+                "total_pages":  doc["total_pages"],
+                "total_chunks": doc["total_chunks"],
+                "chunk_mode":   chunk_mode,
+                "errors":       doc["errors"],
+            })
+            log.info(f"[INGEST_BG] ✅ {doc['filename']} — ingested successfully")
+
+            with ingestion_lock:
+                ingestion_status[doc['filename']] = {"status": "completed", "chunks": total_chunks}
+
+    except Exception as e:
+        # Isolate the failure: mark THIS file failed (so the UI stops showing a spinner)
+        # and let the other files continue.
+        log.error(f"[INGEST_BG] ❌ Failed to ingest {filename} — {type(e).__name__}: {e}", exc_info=True)
+        with ingestion_lock:
+            ingestion_status[filename] = {"status": "failed", "chunks": 0, "error": str(e)}
+
+    return file_results

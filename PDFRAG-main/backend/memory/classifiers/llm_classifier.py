@@ -22,8 +22,9 @@ class LLMClassifier:
             api_key=AZURE_API_KEY,
             api_version=AZURE_API_VERSION,
         )
-        # Use the same model configured for generation
-        self.model = CHAT_MODEL or "gpt-35-turbo"
+        # Classification needs reliable intent/dependency discrimination. The nano model
+        # collapsed analysis/comparison/extraction down to factual, so use the full 4.1.
+        self.model = "gpt-4.1"
     
     def classify_query(
         self,
@@ -84,432 +85,198 @@ class LLMClassifier:
         """Build prompt context for LLM classification."""
         
         context_parts = [
-            "You are an intelligent query analyzer for a RAG (Retrieval Augmented Generation) system.",
-            "Prioritize asking for clarification over using general knowledge.",
+            "You are a query classifier for a RAG system. Given a user query and conversation "
+            "context, output a single JSON object with the fields described below.",
+            "Use your own judgment throughout — do NOT pattern-match on surface words; "
+            "reason about what the user actually wants.",
             "",
         ]
 
-        # Tell the classifier what is actually retrievable. A request to summarize/list/
-        # analyze "the document(s)" or "the content" refers to THESE loaded files and is
-        # therefore resolvable — it must NOT be treated as ambiguous just because it does
-        # not name a specific title. Only a missing corpus makes such a request ambiguous.
+        # Inject loaded documents so the model knows what is retrievable
         if available_documents:
             shown = available_documents[:20]
             context_parts.extend([
-                "LOADED DOCUMENTS (currently available for retrieval):",
+                "LOADED DOCUMENTS (the only sources available for retrieval):",
                 *[f"  - {name}" for name in shown],
                 (f"  ...and {len(available_documents) - len(shown)} more"
                  if len(available_documents) > len(shown) else ""),
-                "A request that refers to 'the document(s)', 'the content', 'the file',",
-                "'the key topics', or the corpus as a whole resolves to these loaded",
-                "documents. Such a request is NOT ambiguous — classify it by its intent",
-                "(summary / extraction / analysis / etc.). Do NOT ask which document when",
-                "these are the only ones loaded.",
+                "",
+                "DOCUMENT RESOLUTION RULE: A query that refers to or names one of these files "
+                "is resolvable — resolve it to that file, set source_files, and do NOT mark it "
+                "ambiguous. 'Refers to' includes: (a) the full or partial filename; (b) an "
+                "unambiguous description of WHAT THE FILE IS, inferred from the filename's "
+                "meaning — e.g. a file named like a standard/spec resolves from a description of "
+                "that standard, a file named for a topic resolves from that topic. Use your "
+                "knowledge of what the filename denotes. Only mark ambiguous when NO loaded file "
+                "plausibly matches, or when two+ files match equally and you cannot choose.",
                 "",
             ])
+            if len(available_documents) == 1:
+                context_parts.extend([
+                    f"Only one document is loaded: {available_documents[0]}. "
+                    "Any generic reference to 'the document', 'it', 'this' automatically refers to it.",
+                    "",
+                ])
         else:
             context_parts.extend([
-                "LOADED DOCUMENTS: none currently in the store.",
-                "A request to summarize/list/analyze 'the document' has no corpus to run",
-                "against → treat as ambiguous and ask the user to provide a document.",
+                "LOADED DOCUMENTS: none. Any document-retrieval request is not yet answerable.",
                 "",
             ])
-        
-        # Check if this is a clarification to an ambiguous query
-        is_clarification = previous_ambiguous_query is not None
-        
-        if not is_clarification:
-            # Normal query classification
-            context_parts.extend([
-                "TASK: Classify the user query into:",
-                "1. DEPENDENCY_TYPE: One of [independent, dependent, multi_group, ambiguous]",
-                "   - independent: Specific, well-defined standalone question with clear context",
-                "   - dependent: Follow-up that depends on active group context",
-                "   - multi_group: Compares/relates multiple topics (needs sub-queries)",
-                "   - ambiguous: Vague/undefined references OR lacks sufficient context",
-                "",
-                "   CLASSIFICATION PRIORITY (check in this exact order):",
-                "   STEP 1: Can the query be resolved as DEPENDENT using the active group?",
-                "           (an unresolved reference that points back to the active topic) → dependent",
-                "   STEP 2: Else, is it INDEPENDENT? (specific, self-contained, clear on its own) → independent",
-                "   STEP 3: Else, is it MULTI_GROUP? (compares/relates multiple distinct topics) → multi_group",
-                "   STEP 4: ONLY IF none of the above apply → ambiguous",
-                "   AMBIGUOUS IS A LAST RESORT. Never choose ambiguous if the query fits",
-                "   dependent, independent, or multi_group.",
-                "",
-                "   AMBIGUOUS arises in exactly TWO situations:",
-                "   CASE A: The query is vague/undefined AND there is NO active group to",
-                "           resolve it against. (User starts fresh with an unclear query.)",
-                "   CASE B: An active group EXISTS, but the query does NOT depend on it",
-                "           (its reference cannot be resolved from the active topic) AND it",
-                "           is also not independent or multi_group on its own.",
-                "",
-                "   DEPENDENT vs INDEPENDENT \u2014 how to decide the boundary:",
-                "   - DEPENDENT means the query CANNOT be understood/retrieved without the",
-                "     active group's topic. This includes IMPLICIT continuations that have NO",
-                "     explicit pronoun but only make sense as a follow-up, e.g. (active topic",
-                "     = <ACTIVE_TOPIC>): 'now the magnetic version', 'what about in 3D?',",
-                "     'and the reverse case', 'same thing but for AC'. Treat these as",
-                "     DEPENDENT and rewrite standalone_query to splice in <ACTIVE_TOPIC>.",
-                "   - INDEPENDENT means the query is fully self-contained and names its own",
-                "     subject, so it stands alone even though it may be in the SAME broader",
-                "     subject area as the active topic. Being merely RELATED to the active",
-                "     topic's domain is NOT enough to be dependent.",
-                "     Example (active topic = <ACTIVE_TOPIC>): 'how does temperature affect",
-                "     resistance?' names its own subject (resistance) and is answerable on",
-                "     its own \u2192 INDEPENDENT (start a new group), even if it shares the same",
-                "     overall document/domain as <ACTIVE_TOPIC>.",
-                "   - RULE OF THUMB: If you must borrow words from <ACTIVE_TOPIC> to make the",
-                "     query retrievable \u2192 dependent. If the query already specifies its own",
-                "     subject \u2192 independent.",
-                "",                "   MULTI_GROUP rules (any request spanning multiple distinct subjects):",
-                "   - A query that targets two or more distinct subjects is MULTI_GROUP — whether",
-                "     it COMPARES them ('compare X and Y') OR simply asks for EACH of them",
-                "     ('give X and Y', 'list X and Y', 'show me X and Y'). multi_group WINS over",
-                "     plain dependent even if one subject is a pronoun pointing to the active topic.",
-                "   - IMPORTANT: multi_group is about DEPENDENCY (how many subjects), NOT about",
-                "     intent. Do NOT assume comparison just because there are two subjects. Choose",
-                "     retrieval_intent SEPARATELY from the ACTION the user wants: give/list/extract",
-                "     → an extraction intent; compare/contrast/vs/difference → comparison; summarize",
-                "     → a summary intent.",
-                "     Example: 'compare it with conductivity' → multi_group + comparison;",
-                "       sub_queries = ['<ACTIVE_TOPIC>', 'conductivity'].",
-                "     Example: 'give X and Y' → multi_group + extraction (NOT comparison).",
-                "   - List EVERY subject as its OWN entry in sub_queries. For N subjects",
-                "     ('give A, B and C') include ALL N items — never collapse or drop any",
-                "     (sub_queries = ['A', 'B', 'C']).",
-                "   - For multi_group you MUST return at least 2 sub_queries. Never return an",
-                "     empty sub_queries list when dependency_type is 'multi_group'.",
-                "",
-                "   COMPOUND REQUESTS — SEGMENTS (split into independent answers):",
-                "   Split a query into 'segments' when it should yield MORE THAN ONE answer that",
-                "   each stands on its own. Each segment is a self-contained sub-request with its",
-                "   OWN intent and (when it clearly targets specific loaded file(s)) its OWN",
-                "   source_files. Two situations call for segments:",
-                "   (a) DIFFERENT OPERATIONS in one query — e.g. it COMPARES some items AND",
-                "       separately SUMMARIZES or EXTRACTS something else: one segment per operation.",
-                "       Example: 'differentiate A and B, and extract the C table' → TWO segments:",
-                "         seg1 {query:'differentiate between A and B', intent:'comparison'},",
-                "         seg2 {query:'extract the C table', intent:'targeted_extraction'}.",
-                "   (b) The SAME per-item operation applied to MULTIPLE DISTINCT SUBJECTS that each",
-                "       deserve their own standalone result — most clearly when the subjects are",
-                "       DIFFERENT DOCUMENTS, so merging them would force unrelated material into one",
-                "       answer: one segment PER subject/file.",
-                "       Example: 'summarize both files' / 'summarize doc1 and doc2' → ONE segment",
-                "         per file, each {query:'summarize <that file>', intent: a summary intent,",
-                "         source_files:['<that file>']}.",
-                "   EXCEPTION — when the operation's RESULT is inherently ABOUT THE RELATIONSHIP",
-                "   between the subjects (the subjects must be weighed together to answer at all),",
-                "   it is ONE combined answer, NOT one segment per subject. So asking how subjects",
-                "   relate to or differ from each other does NOT split (it is a single answer about",
-                "   them together), whereas asking for the SAME standalone result for each subject",
-                "   DOES split (one result per subject).",
-                "   A query that yields just ONE standalone answer has NO segments — return [].",
-                "",                "2. RETRIEVAL_INTENT: One of [factual, targeted_summary, global_summary, comparison, targeted_extraction, global_extraction, analysis, ambiguous]",
-            ])
-        else:
-            # Clarification to a previously-ambiguous query.
-            # The user's new message can be one of THREE things — decide which:
-            context_parts.extend([
-                "TASK: The previous query was vague, so we asked the user for more detail.",
-                "Decide what the user's NEW message is — ONE of three outcomes:",
-                "",
-                "  OUTCOME 1 — CLARIFIES: The new message adds the missing detail for the",
-                "    previous query. → COMBINE them into one standalone_query and classify",
-                "    dependency_type as 'independent' (or 'dependent' if it now clearly",
-                "    relies on the active group, or 'multi_group' if it now compares",
-                "    multiple topics).",
-                "",
-                "  OUTCOME 2 — NEW QUESTION: The new message is a different, self-contained",
-                "    question rather than a detail for the previous one. → Classify the NEW",
-                "    message ON ITS OWN (independent / dependent / multi_group / ambiguous)",
-                "    and base standalone_query only on the new message, setting aside the",
-                "    earlier vague query.",
-                "",
-                "  OUTCOME 3 — STILL VAGUE: The new message is also too vague, and the two",
-                "    together are still not specific enough to retrieve. → classify",
-                "    dependency_type as 'ambiguous' again so we can ask for more detail.",
-                "",
-                "1. RETRIEVAL_INTENT for the resulting query: One of [factual, targeted_summary, global_summary, comparison, targeted_extraction, global_extraction, analysis, ambiguous]",
-            ])
-        
-        context_parts.extend([
-            "   - factual: Direct question asking for specific information",
-            "     Examples: 'What is X?', 'What are the SI units of X?', 'Define X', 'What does X mean?'",
-            "     → Retrieve top_k chunks, give DIRECT CONCISE ANSWER",
-            "   - targeted_summary: Focused overview/synthesis of a specific topic/section",
-            "     Examples: 'Summarize access control section', 'Overview of X controls'",
-            "     → Retrieve relevant subset, provide focused synthesis",
-            "   - global_summary: Whole-document/corpus overview",
-            "     Examples: 'Summarize the whole document', 'Give complete overview of this PDF'",
-            "     → Retrieve document-wide context, provide comprehensive synthesis",
-            "   - comparison: EXPLICITLY compare/contrast two or more items. Requires",
-            "     comparison language (compare, contrast, versus/vs, difference between,",
-            "     which is better/worse). A plain conjunction like 'give X and Y' or",
-            "     'list X and Y' is NOT comparison — classify it by its action verb instead.",
-            "     Examples: 'Compare X and Y', 'Difference between X and Y', 'X vs Y'",
-            "     → Retrieve relevant chunks, structured COMPARISON",
-            "   - targeted_extraction: Extract a specific table/list/subset",
-            "     Examples: 'Give me the information security controls table', 'Extract X matrix'",
-            "     → Retrieve relevant subset, return exact structured items",
-            "   - global_extraction: Explicitly asking complete document-wide enumeration",
-            "     Examples: 'List all X', 'Enumerate every X in the document', 'Give me complete list of X'",
-            "     → Retrieve ALL chunks, COMPREHENSIVE LIST",
-            "   - analysis: The user wants the REASONING or WORKING behind something — the",
-            "     steps, causes, or justification that lead to a result — rather than the",
-            "     finished result itself. (Asking to show how a result is reached or why",
-            "     something is so is analysis; asking only for the end artifact — a value,",
-            "     formula, or table — is factual/extraction.)",
-            "     Examples: 'Why does X happen?', 'How does X work?', 'Derive the formula for X'",
-            "     → Retrieve relevant chunks, step-by-step analytical breakdown",
-            "",
-        ])
-        
-        if not is_clarification:
-            context_parts.extend([
-                "   - ambiguous: Query is vague or needs clarification before retrieval",
-                "",
-                "3. BELONGS_TO_ACTIVE_GROUP: Boolean",
-                "   - true: Query relates to active group topic",
-                "   - false: Query is about different topic",
-                "",
-            ])
-        else:
-            context_parts.extend([
-                "2. BELONGS_TO_ACTIVE_GROUP: Boolean",
-                "   - true: Combined query relates to active group topic",
-                "   - false: Combined query is about different topic",
-                "",
-            ])
-        
-        # Add active group info if available
+
+        # Inject active group context if present
         if active_group_topic or active_group_summary:
-            context_parts.append("ACTIVE GROUP CONTEXT:")
+            context_parts.append("ACTIVE CONVERSATION CONTEXT:")
             if active_group_topic:
                 context_parts.append(f"Topic: {active_group_topic}")
             if active_group_summary:
-                context_parts.append(f"Summary: {active_group_summary[:200]}")
-        else:
-            context_parts.append("NO ACTIVE GROUP CONTEXT - User is starting fresh")
+                context_parts.append(
+                    "Prior Q&A (use this to resolve any back-reference in the query — "
+                    "'the above', 'it', 'that', 'explain more', etc.):\n"
+                    + active_group_summary[:2500]
+                )
             context_parts.append("")
-        
-        context_parts.extend([
-            "INTENT CLASSIFICATION RULES:",
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-            "RULE 1: FACTUAL vs TARGETED/GLOBAL EXTRACTION vs TARGETED/GLOBAL SUMMARY",
-            "  FACTUAL = Direct specific questions asking for single/focused information:",
-            "    Examples: 'What is X?' | 'Define X' | 'What are the SI units of X?' | 'When was X discovered?'",
-            "    → Use your judgment: Does the question seek ONE specific thing or ONE focused answer?",
-            "",
-            "  TARGETED_EXTRACTION = Specific table/list/subset extraction:",
-            "    Examples: 'information security controls table' | 'extract access control matrix'",
-            "    → Focused structured extraction from relevant subset",
-            "",
-            "  GLOBAL_EXTRACTION = Comprehensive lists, enumerations, asking for all items:",
-            "    Examples: 'List all X' | 'List the X' | 'Enumerate X' | 'All the X' | 'All properties of X'",
-            "    Examples: 'What are all the physical quantities?' | 'Show everything about X'",
-            "    → Use your judgment: Is the user asking for a COMPLETE corpus-wide list?",
-            "",
-            "  TARGETED_SUMMARY = Overview/synthesis of a specific topic/section:",
-            "    Examples: 'Summarize section X' | 'Overview of access controls'",
-            "    → Focused synthesis for the requested scope",
-            "",
-            "  GLOBAL_SUMMARY = Overview/synthesis of the whole document/corpus:",
-            "    Examples: 'Summarize the whole document' | 'Complete overview of this PDF'",
-            "    → Comprehensive synthesis across the entire corpus",
-            "",
-            "RULE 2: ANALYSIS vs COMPARISON vs PLAIN CONJUNCTION",
-            "  ANALYSIS = the user wants the REASONING or WORKING behind a result — the steps,",
-            "    causes, or justification — rather than the finished result itself. Showing HOW",
-            "    a result is reached or WHY something holds is analysis; asking only for the end",
-            "    artifact (a value, formula, or table) is factual/extraction.",
-            "    Examples: 'Why does X happen?' | 'How does X work?' | 'Derive the formula for X'",
-            "  COMPARISON = EXPLICITLY contrasting/comparing items. Needs comparison language",
-            "    (compare, contrast, vs/versus, difference between, which is better):",
-            "    Examples: 'Compare X and Y' | 'Difference between X and Y' | 'X vs Y'",
-            "  PLAIN CONJUNCTION (NOT comparison): 'give X and Y' | 'list X and Y' | 'show X and Y'",
-            "    simply asks for BOTH subjects. Keep dependency_type multi_group, but set",
-            "    retrieval_intent from the ACTION (give/list/extract → an extraction intent;",
-            "    summarize → a summary intent). Two subjects alone NEVER implies comparison.",
-            "",
-            "RULE 3: Identify AMBIGUOUS queries",
-            "  Examples of ambiguity: 'both', 'that', 'it', 'those', 'they', 'these' without clear reference",
-            "  Examples: 'the unit', 'the value', 'the formula' (of WHAT?)",
-            "  Examples: 'What is SI unit?' without context",
-            "  → Use your judgment: Does the query have undefined or unclear references?",
-            "",
-            "  IMPORTANT EXCEPTION — RESOLVE WITH ACTIVE GROUP FIRST:",
-            "  If an ACTIVE GROUP CONTEXT exists and the query contains an unresolved",
-            "  reference that clearly points back to the active group's topic, then it",
-            "  is NOT ambiguous.",
-            "  → Classify as 'dependent', set belongs_to_active_group=true, and",
-            "    RESOLVE the reference in standalone_query using the active topic.",
-            "  Example (active topic = <ACTIVE_TOPIC>):",
-            "    'formula of that' → dependent → standalone: 'formula of <ACTIVE_TOPIC>'",
-            "    'what is its unit' → dependent → standalone: 'unit of <ACTIVE_TOPIC>'",
-            "  Only mark AMBIGUOUS when there is NO active group OR the reference",
-            "  genuinely cannot be resolved from the active topic.",
-            "",
-        ])
-        
-        # If this is a clarification to an ambiguous query, include both in context
-        if previous_ambiguous_query:
-            context_parts.extend([
-                "FOLLOW-UP CONTEXT:",
-                f'Earlier vague query: "{previous_ambiguous_query}"',
-                f'User follow-up message: "{query}"',
-                "",
-                "TASK FOR THE FOLLOW-UP — first decide the OUTCOME (see above), then:",
-                "  If OUTCOME 1 (CLARIFIES): Combine the earlier query with the user's",
-                "    follow-up into a single standalone_query that makes sense for",
-                "    document retrieval.",
-                "      Example:",
-                '        Earlier: "list all quantities"',
-                '        Follow-up: "from the uploaded PDF"',
-                '        Standalone: "list all physical quantities mentioned in the uploaded PDF document"',
-                "  If OUTCOME 2 (NEW QUESTION): Use ONLY the new message as standalone_query",
-                "    and classify it on its own, setting aside the earlier vague query.",
-                '      Example: Earlier "what is the unit?" + New "summarize chapter 2"',
-                '        → standalone: "summarize chapter 2" (independent, summary)',
-                "  If OUTCOME 3 (STILL VAGUE): Keep dependency_type 'ambiguous';",
-                "    do not invent specifics that the user has not provided.",
-                '      Example: Earlier "what is the value?" + Follow-up "the other one"',
-                "        → still ambiguous (which value? still unclear)",
-                "",
-            ])
         else:
-            context_parts.extend([
-                "USER QUERY:",
-                f'"{query}"',
-                "",
-                "AMBIGUITY DETECTION (FOR RAG SYSTEMS):",
-                "FIRST, try to resolve using ACTIVE GROUP CONTEXT (see below).",
-                "If an active group exists and the query contains an unresolved reference",
-                "that points back to its topic, classify as 'dependent' (NOT ambiguous)",
-                "and resolve the reference in standalone_query.",
-                "",
-                "Mark as AMBIGUOUS only if ANY of these apply AND it cannot be resolved from the active group:",
-                "  1. Undefined pronouns without context: both, that, it, those, they, these, etc.",
-                "  2. Vague/general references: 'the unit', 'the value', 'the formula', 'the type' (type of WHAT?)",
-                "  3. General knowledge questions WITH NO PRIOR CONTEXT: 'What is SI unit?' needs clarification on context",
-                "  4. Incomplete comparisons: 'Compare these' without specifying what",
-                "  5. Questions that could be answered from general LLM knowledge but need document context",
-                "",
-                "TYPO TOLERANCE (do NOT treat as ambiguous):",
-                "  - A clear MISSPELLING or typo of an otherwise-recognizable word is NOT ambiguity.",
-                "    Infer the intended word and classify by its MEANING; fix the spelling in",
-                "    standalone_query. Never ask the user to clarify an obvious typo.",
-                "    Examples: 'bublbs' → 'bulbs'; 'elecitrcity' → 'electricity'; 'controlls' → 'controls';",
-                "      'combination of bublbs' → 'combination of bulbs' (clear subject, NOT ambiguous).",
-                "  - A query with two or more clearly-named subjects (e.g. 'A and B') is NOT ambiguous",
-                "    just because ONE word is misspelled — classify it as multi_group and correct the",
-                "    spelling. Only mark ambiguous when the INTENDED meaning is genuinely unrecoverable.",
-                "",
-                "BARE TOPIC / KEYWORD QUERIES (do NOT treat as ambiguous):",
-                "  - A query that is just a topic or noun phrase NAMING A CONCRETE SUBJECT, with",
-                "    no undefined reference, is a RETRIEVAL REQUEST — the user wants that topic",
-                "    from the loaded documents. A missing action verb (no 'list'/'what is'/'explain')",
-                "    does NOT make it ambiguous; treat it like a search box for that subject.",
-                "  - Classify it by what the subject denotes (use judgment, keep the subject in",
-                "    standalone_query):",
-                "      • A subject naming a CATEGORY or SET of items (a plural/collective noun",
-                "        phrase) → an extraction intent: global_extraction when it reads as the",
-                "        document's complete set of that category, else targeted_extraction.",
-                "      • A single specific concept/term → factual (a definition/direct answer) or",
-                "        targeted_summary if it is a broad section/topic.",
-                "  - Ambiguity is about UNDEFINED references, NOT a missing verb. Mark such a",
-                "    bare phrase ambiguous ONLY if the phrase itself is undefined — it contains a",
-                "    pronoun ('it', 'that', 'those') or a dangling 'the value/the unit/the type'",
-                "    of an UNSTATED thing. A phrase that fully names its own subject is resolvable.",
-                "",
-                "CRITICAL RULE:",
-                "AMBIGUOUS happens in exactly two ways:",
-                "  CASE A: NO ACTIVE GROUP exists and the query is general/vague → AMBIGUOUS.",
-                "  CASE B: An ACTIVE GROUP exists but the query does NOT depend on it,",
-                "          and it is also not independent or multi_group → AMBIGUOUS.",
-                "If an ACTIVE GROUP EXISTS and the reference resolves to its topic, mark as DEPENDENT.",
-                "This ensures user clarifies their intent before retrieving from documents.",
-                "Example: 'What is the SI unit?' WITHOUT prior context → AMBIGUOUS (ask what specifically)",
-                "Example: 'What is current in SI units?' → Could be INDEPENDENT if specific enough",
-                "",
-            ])
-        
-        context_parts.extend([
-            "4. STANDALONE_QUERY: Reformulated query for document retrieval",
-            "   - Make the query self-contained and clear for the retrieval system",
-            "   - Correct obvious typos/misspellings here (e.g. 'bublbs' → 'bulbs') so retrieval",
-            "     matches the intended terms",
-            "   - If CLARIFICATION: Combine the ambiguous query + clarification naturally",
-            "   - Examples of clarifications being converted to standalone queries:",
-            "     'list all quantities' + 'from the chapter' → 'all physical quantities in the document'",
-            "     'list all X' + 'from uploaded pdf' → 'comprehensive list of X'",
-            "     'Any exemptions?' + 'for turnover requirement' → 'What are exemptions for turnover requirement?'",
-            "   - Let your judgment determine the scope based on the user's intent",
-            "   - If AMBIGUOUS: Keep original query, don't try to expand undefined references",
-            "",
-            "5. ANSWER_SOURCE: Where the answer must come from — one of [document, previous_answer]",
-            "   Decide by judging what the request OPERATES ON, not by matching specific words:",
-            "   - previous_answer: The request takes the assistant's PREVIOUS ANSWER as its",
-            "     subject and can be fully satisfied from that answer's own content — whether by",
-            "     restating it (reformat/condense/expand/translate/restyle) or by reasoning over",
-            "     it (analyze, derive aspects, draw out implications). No NEW document facts are",
-            "     required because the needed material is already in the previous answer.",
-            "   - document: The request needs information NOT already contained in the previous",
-            "     answer, so it must be retrieved from the documents. This is the DEFAULT,",
-            "     including topic continuations that go beyond what was already said.",
-            "   - TEST: Could the request be answered using ONLY the text of the previous answer?",
-            "     Yes → 'previous_answer'. No / needs more from the source → 'document'.",
-            "     When genuinely unsure, choose 'document'.",
-            "",
-            "6. SOURCE_FILES: a JSON array pinning retrieval to specific loaded file(s).",
-            "   - Set it ONLY when the query unmistakably targets particular loaded file(s) —",
-            "     by name (e.g. 'summarize electricity.pdf') or by a description that clearly",
-            "     identifies one (e.g. 'the security standard' → an ISO file). Use the EXACT",
-            "     filename(s) from the LOADED DOCUMENTS list. Include every file it targets.",
-            "   - Return [] when the query does NOT single out a file, refers to the corpus as a",
-            "     whole ('the documents', 'everything'), or you are at all unsure — [] searches",
-            "     all files. For a multi_group/compound query, leave per-subject/segment pinning",
-            "     to those fields and keep this [].",
-            "",
-            "RESPONSE FORMAT:",
-            "Provide JSON response with exactly these fields:",
-        ])
-        
+            context_parts.extend(["NO PRIOR CONVERSATION — user is starting fresh.", ""])
+
+        is_clarification = previous_ambiguous_query is not None
+
         if is_clarification:
             context_parts.extend([
-                "{",
-                '  "dependency_type": "independent" OR "dependent" OR "multi_group" OR "ambiguous",',
-                '  "retrieval_intent": "factual" OR "targeted_summary" OR "global_summary" OR "comparison" OR "targeted_extraction" OR "global_extraction" OR "analysis" OR "ambiguous",',
-                '  "belongs_to_active_group": true or false,',
-                '  "answer_source": "document" OR "previous_answer",',
-                '  "reasoning": "State which OUTCOME (1 CLARIFIES / 2 NEW QUESTION / 3 STILL AMBIGUOUS) and why (1-2 sentences)",',
-                '  "standalone_query": "Query ready for retrieval (combined, or new-message-only, or original if still ambiguous)",',
-                '  "sub_queries": [] or ["sub_query1", "sub_query2", ...],',
-                '  "source_files": [] or ["<exact filename>", ...],',
-                '  "suggested_topic": "Topic name if not belongs_to_active_group"',
-                "}",
+                f'PREVIOUS AMBIGUOUS QUERY: "{previous_ambiguous_query}"',
+                f'USER FOLLOW-UP: "{query}"',
+                "",
+                "Decide the outcome: (1) the follow-up CLARIFIES the previous query — combine "
+                "them into one retrievable standalone_query; (2) it is a DIFFERENT question — "
+                "classify the new message on its own; (3) still too vague — mark ambiguous again.",
+                "",
             ])
         else:
             context_parts.extend([
-                "{",
-                '  "dependency_type": "independent" OR "dependent" OR "multi_group" OR "ambiguous",',
-                '  "retrieval_intent": "factual" OR "targeted_summary" OR "global_summary" OR "comparison" OR "targeted_extraction" OR "global_extraction" OR "analysis" OR "ambiguous",',
-                '  "belongs_to_active_group": true or false,',
-                '  "answer_source": "document" OR "previous_answer",',
-                '  "reasoning": "Brief explanation (1-2 sentences)",',
-                '  "standalone_query": "Self-contained query for retrieval",',
-                '  "sub_queries": [] or ["sub_query1", "sub_query2", ...],',
-                '  "segments": [] or [{"title": "short label", "query": "self-contained sub-request", "intent": "<one intent>", "source_files": ["<exact filename>", ...]}],',
-                '  "source_files": [] or ["<exact filename>", ...],',
-                '  "suggested_topic": "Topic name for new group if not belongs_to_active_group"',
-                "}",
+                f'USER QUERY: "{query}"',
+                "",
             ])
-        
+
         context_parts.extend([
+            "CLASSIFY into the following JSON fields:",
             "",
-            "Respond with ONLY valid JSON, no markdown or additional text.",
+            "1. dependency_type — EXACTLY ONE of: independent | dependent | multi_group | ambiguous.",
+            "   (This describes how the query relates to the conversation and how many subjects it",
+            "   spans. It is NEVER an intent name like 'comparison'/'factual' — those go in",
+            "   retrieval_intent, field 2.)",
+            '   "dependent"   : cannot be understood without the active conversation context',
+            '                   (refers to it via "it/that/the above/this", or is an implicit',
+            '                   continuation like "now the magnetic version", "what about in 3D?").',
+            '                   Resolve the reference and rewrite standalone_query accordingly.',
+            '   "independent" : fully self-contained; names its own subject. NOTE: a query in the',
+            '                   SAME broad domain as the active topic but naming its own subject is',
+            '                   still independent (e.g. active="drift velocity", query="how does',
+            '                   temperature affect resistance" -> independent). A query that weighs',
+            '                   several subjects together into ONE combined answer is independent',
+            '                   too — e.g. a comparison ("compare X and Y", "difference between X',
+            '                   and Y") yields a single relational answer, so it is independent',
+            '                   with retrieval_intent=comparison, NOT multi_group.',
+            '   "multi_group" : use ONLY when the query asks for SEVERAL SEPARATE answers — two or',
+            '                   more distinct subjects that each deserve their OWN independent',
+            '                   retrieval and their own answer (e.g. "give me X and Y", "tell me',
+            '                   about A, B and C", or subjects that live in different documents).',
+            '                   Judge by the RESULT: would a good answer be ONE combined response',
+            '                   (-> independent) or SEPARATE per-subject responses (-> multi_group)?',
+            '                   When multi_group, put one entry per subject in sub_queries, each',
+            '                   with its OWN retrieval_intent. This wins over "dependent" even if',
+            '                   one subject is a pronoun pointing at the active topic. (If the',
+            '                   query mixes DIFFERENT operations, that is a COMPOUND query — keep',
+            '                   dependency_type independent/dependent and use segments.)',
+            '   "ambiguous"   : LAST RESORT. Only when the query has an undefined reference AND',
+            '                   there is no active context to resolve it against. If an active',
+            '                   conversation exists and the reference resolves to it -> dependent,',
+            '                   NOT ambiguous. An obvious typo is NOT ambiguity (fix it instead).',
+            "",
+            "2. retrieval_intent — judge what KIND of answer the user wants (not surface words):",
+            '   "factual"   : wants ONE specific fact/definition/value stated directly.',
+            '                 e.g. "what is X", "define X", "units of X".',
+            '   "analysis"  : wants the REASONING / DERIVATION / PROCESS behind something — how it',
+            '                 works, why it holds, or how a result is obtained — not just the end',
+            '                 value. e.g. "derive X", "how does X work", "why does X happen".',
+            '                 If the user wants you to EXPLAIN/SHOW/DERIVE -> analysis, not factual.',
+            '   "comparison": the answer is inherently RELATIONAL — subjects must be weighed',
+            '                 against each other. e.g. "difference between X and Y", "X vs Y",',
+            '                 "compare X and Y", "which is better". (A plain "give X and Y" with no',
+            '                 relational intent is NOT comparison — pick its action verb instead.)',
+            '   "targeted_summary"    : overview of ONE specific topic/section WITHIN a document.',
+            '                           e.g. "summarize the access-control section".',
+            '   "global_summary"      : overview whose scope is a WHOLE document/file/corpus,',
+            '                           including "what is <doc> about" / "summarize <doc>" /',
+            '                           "tell me about <doc>". If the subject IS a document (not a',
+            '                           section inside it) -> global_summary.',
+            '   "targeted_extraction" : specific structured items — a named table/list/subset.',
+            '                           e.g. "the X controls table", "extract the Y matrix".',
+            '   "global_extraction"   : a COMPLETE document-wide enumeration. Triggered when the',
+            '                           user asks for everything of a kind — "list all X",',
+            '                           "every X", "complete list of X".',
+            '   "positional"          : selects item(s) by their PLACE/ORDER in the document',
+            '                           rather than by content — e.g. "the last two <items>",',
+            '                           "the first three", "the 5th <item>", "the one after X",',
+            '                           "the bottom of the list". Position can only be resolved',
+            '                           by reading the WHOLE document in order, so use this',
+            '                           whenever the selector is ordinal/positional, even though',
+            '                           only a few items are ultimately wanted.',
+            '   "ambiguous"           : intent cannot be determined without clarification.',
+            "   Pick the NARROWEST intent that fits; reserve the GLOBAL and positional intents",
+            "   for requests whose scope genuinely requires reading the whole document.",
+            "",
+            "3. belongs_to_active_group — true if this query continues the active conversation topic.",
+            "",
+            "4. standalone_query — a self-contained, retrieval-ready version of the query.",
+            "   Resolve any back-references using the active context. Correct obvious typos.",
+            "   For multi_group/segments, this is the combined query; per-subject wording goes in sub_queries.",
+            "",
+            "5. sub_queries — REQUIRED (>=2 entries) when dependency_type is multi_group; else [].",
+            "   One object per subject, each with its OWN intent (using the definitions above):",
+            '   {"query": "...", "intent": "<intent>", "source_files": [...]}',
+            "   source_files: exact filename(s) from the loaded list if the subject clearly targets",
+            "   a specific file; [] otherwise. Decide each subject's intent HERE (don't defer).",
+            "",
+            "6. segments — for COMPOUND queries: a single query that asks for TWO OR MORE",
+            "   genuinely DIFFERENT OPERATIONS (different intents), each yielding its own answer.",
+            "   The test: does the query combine operations that would NOT share one intent?",
+            "   e.g. 'compare A and B, AND summarize C' = a comparison operation + a summary",
+            "   operation -> TWO segments. 'define X and give me the Y table' = a factual op + an",
+            "   extraction op -> TWO segments. Each segment: {title, query, intent, source_files}.",
+            "   IMPORTANT: a compound query usually still has dependency_type 'independent' (or",
+            "   'dependent'), NOT 'multi_group' — multi_group is for ONE operation over many",
+            "   subjects, whereas segments are for MANY operations. When you emit segments (>=2),",
+            "   leave sub_queries=[]. A query that is a SINGLE operation (even over many subjects,",
+            "   like a pure comparison) has NO segments -> return [].",
+            "",
+            "7. source_files — exact filename(s) from the loaded list if the WHOLE query clearly",
+            "   targets specific file(s); [] otherwise.",
+            "",
+            "8. answer_source — 'previous_answer' if the request can be fully satisfied from the",
+            "   previous assistant answer alone (reformat it, condense, translate, tabulate,",
+            "   analyse what was already said). 'document' in all other cases (default).",
+            "",
+            "9. suggested_topic — short topic label for a new conversation group (when needed).",
+            "",
+            "10. reasoning — one sentence explaining the key classification decision.",
+            "",
         ])
-        
+
+        context_parts.extend([
+            "RESPONSE FORMAT — valid JSON only, no markdown:",
+            "{",
+            '  "dependency_type": "...",',
+            '  "retrieval_intent": "...",',
+            '  "belongs_to_active_group": true/false,',
+            '  "standalone_query": "...",',
+            '  "sub_queries": [],',
+            '  "segments": [],',
+            '  "source_files": [],',
+            '  "answer_source": "document",',
+            '  "suggested_topic": "...",',
+            '  "reasoning": "..."',
+            "}",
+        ])
+
         return "\n".join(context_parts)
     
     def _call_llm(self, prompt: str) -> str:
@@ -573,7 +340,32 @@ class LLMClassifier:
             # explicitly says the request operates on the previous answer).
             answer_source = str(result.get("answer_source", "document")).lower().strip()
             result["answer_source"] = "previous_answer" if answer_source == "previous_answer" else "document"
-            
+
+            # Defensive normalization of dependency_type. The model occasionally puts an
+            # operation word ('comparison', 'segments', an intent name, ...) into this field
+            # instead of one of the four valid values. Rather than letting that map to
+            # 'ambiguous' downstream (which would wrongly skip retrieval), INFER the right
+            # value from the structured outputs the model DID produce:
+            #   - 2+ segments  -> a COMPOUND query; dependency is independent (segments drive it)
+            #   - 2+ sub_queries -> a MULTI_GROUP query
+            #   - otherwise     -> fall back to ambiguous (genuinely unclassifiable)
+            valid_dep = {"independent", "dependent", "multi_group", "ambiguous"}
+            dep = str(result.get("dependency_type", "")).lower().strip()
+            if dep not in valid_dep:
+                segs = result.get("segments") or []
+                subs = result.get("sub_queries") or []
+                if isinstance(segs, list) and len(segs) >= 2:
+                    inferred = "independent"
+                elif isinstance(subs, list) and len(subs) >= 2:
+                    inferred = "multi_group"
+                else:
+                    inferred = "ambiguous"
+                log.warning(
+                    f"[LLM_CLASSIFIER] Invalid dependency_type '{dep}' from model — "
+                    f"inferred '{inferred}' from outputs (segs={len(segs)}, subs={len(subs)})"
+                )
+                result["dependency_type"] = inferred
+
             log.info(f"[LLM_CLASSIFIER] Parsed response: {result['dependency_type']} | {result['retrieval_intent']}")
             log.info(f"[LLM_CLASSIFIER] Standalone query: {result['standalone_query'][:80]}")
             return result
@@ -622,67 +414,98 @@ class LLMClassifier:
     def split_multi_group_query(
         self,
         query: str,
-        sub_queries_from_llm: List[str],
+        sub_queries_from_llm: List[Any],
         available_documents: List[str] = None
     ) -> List[Dict[str, str]]:
         """
-        Process multi-group query by splitting into sub-queries IN PARALLEL.
-        
-        Generates topic + intent (+ optional source_file) for all sub-queries
-        simultaneously using a thread pool.
+        Normalize the multi-group sub-queries from the SINGLE classification call.
+
+        The main ``classify_query`` call already returns each sub-query WITH its own
+        retrieval intent (and optional source_files), so no extra per-sub-query LLM
+        calls are made here — each rich entry is validated and used directly. Only
+        bare-string sub-queries (e.g. from the recovery path) are classified on demand
+        as a fallback, so the normal multi_group path costs ZERO extra LLM calls.
         """
         if not sub_queries_from_llm:
             log.warning("[LLM_CLASSIFIER] ⚠️ Multi-group query but no sub-queries provided")
             return [{"query": query, "topic": "General"}]
-        
-        log.info(f"[LLM_CLASSIFIER] Splitting multi-group into {len(sub_queries_from_llm)} sub-queries (PARALLEL)")
-        
-        # Classify topic + retrieval intent per sub-query in parallel. Each sub-query
-        # of a multi-group request is retrieved INDEPENDENTLY, so it gets its OWN
-        # intent and therefore its own per-intent K (see retriever INTENT_RETRIEVAL_CONFIG).
-        max_workers = min(len(sub_queries_from_llm), 5)  # Cap at 5 parallel threads
-        
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            log.info(f"[LLM_CLASSIFIER] Submitting {len(sub_queries_from_llm)} topic+intent tasks with {max_workers} workers")
-            
-            future_to_index = {}
-            for i, sub_q in enumerate(sub_queries_from_llm):
-                future = executor.submit(
-                    self._get_topic_and_intent_for_subquery,
-                    sub_q, i + 1, len(sub_queries_from_llm), available_documents
-                )
-                future_to_index[future] = i
-            
-            # Collect results as they complete
-            meta_by_index = {}
-            completed = 0
-            
-            for future in as_completed(future_to_index):
-                index = future_to_index[future]
-                completed += 1
-                
-                try:
-                    meta = future.result()
-                    meta_by_index[index] = meta
-                    log.info(f"[LLM_CLASSIFIER] Sub-query {completed}/{len(sub_queries_from_llm)} → topic='{meta['topic'][:30]}' intent='{meta['intent']}'")
-                except Exception as e:
-                    log.warning(f"[LLM_CLASSIFIER] ⚠️ Failed topic+intent for sub-query {index + 1}: {e}")
-                    meta_by_index[index] = {"topic": "General", "intent": "factual"}
-            
-            # Build result list in original order
-            sub_query_list = []
-            for i, sub_q in enumerate(sub_queries_from_llm):
-                meta = meta_by_index.get(i, {"topic": "General", "intent": "factual"})
-                entry = {
-                    "query": sub_q,
-                    "topic": meta["topic"],
-                    "intent": meta["intent"],
+
+        valid_intents = {
+            "factual", "targeted_summary", "global_summary", "comparison",
+            "targeted_extraction", "global_extraction", "analysis",
+        }
+        valid_files = {str(d).strip() for d in (available_documents or [])}
+
+        def _clean_files(raw: Any) -> List[str]:
+            if isinstance(raw, str):
+                raw = [raw]
+            if not isinstance(raw, list):
+                return []
+            files = [f for f in (str(x).strip() for x in raw) if f in valid_files]
+            return list(dict.fromkeys(files))  # de-dup, preserve order
+
+        results: List[Optional[Dict[str, str]]] = [None] * len(sub_queries_from_llm)
+        needs_llm: List[int] = []  # indices of bare/intentless sub-queries needing a fallback call
+
+        for i, sq in enumerate(sub_queries_from_llm):
+            # Rich object from the single main call: {query, intent, source_files?}.
+            if isinstance(sq, dict):
+                q = (sq.get("query") or "").strip()
+                if not q:
+                    continue
+                intent = (sq.get("intent") or "").strip().lower()
+                if intent in valid_intents:
+                    entry: Dict[str, Any] = {"query": q, "topic": q[:40], "intent": intent}
+                    files = _clean_files(sq.get("source_files"))
+                    if files:
+                        entry["filenames"] = files
+                    results[i] = entry
+                else:
+                    needs_llm.append(i)  # object without a usable intent
+            else:
+                # Bare string (e.g. recovery path) — no intent provided.
+                if str(sq).strip():
+                    needs_llm.append(i)
+
+        # Fallback ONLY for sub-queries that arrived WITHOUT an intent. In the normal
+        # multi_group path this list is empty, so no extra LLM calls happen at all.
+        if needs_llm:
+            log.info(f"[LLM_CLASSIFIER] {len(needs_llm)} sub-query(ies) missing intent — classifying ONLY those")
+
+            def _text(idx: int) -> str:
+                s = sub_queries_from_llm[idx]
+                return (s.get("query") if isinstance(s, dict) else str(s)).strip()
+
+            with ThreadPoolExecutor(max_workers=min(len(needs_llm), 5)) as executor:
+                future_to_index = {
+                    executor.submit(
+                        self._get_topic_and_intent_for_subquery,
+                        _text(idx), n + 1, len(needs_llm), available_documents
+                    ): idx
+                    for n, idx in enumerate(needs_llm)
                 }
-                if meta.get("source_files"):
-                    entry["filenames"] = meta["source_files"]
-                sub_query_list.append(entry)
-        
-        log.info(f"[LLM_CLASSIFIER] ✅ Generated topic+intent for all {len(sub_queries_from_llm)} sub-queries in parallel")
+                for future in as_completed(future_to_index):
+                    idx = future_to_index[future]
+                    qtext = _text(idx)
+                    try:
+                        meta = future.result()
+                    except Exception as e:
+                        log.warning(f"[LLM_CLASSIFIER] ⚠️ Failed topic+intent for sub-query {idx + 1}: {e}")
+                        meta = {"topic": "General", "intent": "factual"}
+                    entry = {
+                        "query": qtext,
+                        "topic": meta.get("topic", "General"),
+                        "intent": meta.get("intent", "factual"),
+                    }
+                    if meta.get("source_files"):
+                        entry["filenames"] = meta["source_files"]
+                    results[idx] = entry
+
+        sub_query_list = [e for e in results if e is not None]
+        log.info(
+            f"[LLM_CLASSIFIER] ✅ Prepared {len(sub_query_list)} sub-queries "
+            f"(intent from single main call; {len(needs_llm)} fallback-classified)"
+        )
         return sub_query_list
     
     def _get_topic_and_intent_for_subquery(self, sub_query: str, index: int, total: int,

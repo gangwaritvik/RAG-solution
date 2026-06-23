@@ -22,6 +22,7 @@ from backend.utils.logger import get_logger
 log = get_logger("multi_group_processor")
 
 
+
 class MultiGroupProcessor:
     """Retrieves balanced context across the sub-queries of a multi-subject query."""
 
@@ -42,22 +43,22 @@ class MultiGroupProcessor:
         per_subject_top_k: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Retrieve each sub-query INDEPENDENTLY using its own intent, then merge.
+        Retrieve each sub-query INDEPENDENTLY using ITS OWN intent, then merge.
 
-        A multi-group request is really N independent retrievals. Each sub-query is
-        classified with its OWN retrieval intent (by the classifier) and is therefore
-        retrieved with that intent's predefined K and threshold from the retriever's
-        ``INTENT_RETRIEVAL_CONFIG`` — a ``targeted_extraction`` subject uses its K, a
-        ``global_extraction`` subject scans its whole document, etc. There is NO shared
-        budget and no fixed per-subject cap; each subject keeps exactly what its intent
-        allows. Results are merged and de-duplicated.
+        multi_group is reserved for genuinely SEPARATE subjects that each need their own
+        retrieval and answer (e.g. "give me X and Y", or subjects spanning different
+        documents). Each sub-query carries its own retrieval intent (assigned by the
+        classifier) and is retrieved with that intent's K and threshold from the
+        retriever's ``INTENT_RETRIEVAL_CONFIG``. Retrieving the subjects separately
+        (instead of one blended embedding) guarantees balanced coverage of every subject.
+        A single relational comparison is NOT routed here — it is classified
+        independent + comparison and uses the normal single comprehensive retrieval.
 
         Args:
-            sub_queries: List of dicts each with a "query", and optional "topic"/"intent".
-            retrieval_intent: Overall query intent — used ONLY as a fallback for a
-                sub-query that has no intent of its own.
-            per_subject_top_k: Optional manual Top-K. When set, it overrides every
-                subject's intent K (each subject is capped at this value).
+            sub_queries: List of dicts each with a "query", optional "intent"/"filenames".
+            retrieval_intent: Overall intent — fallback only for a sub-query with no intent.
+            per_subject_top_k: Optional manual Top-K. When set, it overrides the intent K
+                for every subject (each subject is capped at this value).
 
         Returns:
             Merged, de-duplicated list of chunk hits (best score kept per chunk),
@@ -69,6 +70,12 @@ class MultiGroupProcessor:
             q = (sq.get("query") or "").strip()
             if not q:
                 continue
+            # Each subject is retrieved with ITS OWN intent (assigned by the classifier),
+            # falling back to the overall intent only when a subject has none. multi_group
+            # is reserved for genuinely separate subjects that each need their own
+            # retrieval+answer, so honoring per-subject intents is correct. (A single
+            # relational comparison is NOT multi_group — it is classified independent +
+            # comparison and goes through the normal single comprehensive retrieval.)
             sub_intent = (sq.get("intent") or "").strip() or retrieval_intent
             tasks.append({
                 "subject": q,

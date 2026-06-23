@@ -6,7 +6,7 @@
     <title>PDF RAG — G+D</title>  
     <link rel="icon" type="image/x-icon" href="favicon.ico"/>  
     <link rel="stylesheet" href="styles.css"/>  
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>  
+    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>  
     <script>  
         window.MathJax = {  
             tex: { inlineMath: [['\\(','\\)'],['$','$']], displayMath: [['\\[','\\]'],['$$','$$']] },  
@@ -19,12 +19,8 @@
 
 <header class="header">  
     <div class="header-left">  
-        <div class="logo">&#x2B21; PDF<strong>RAG</strong></div>  
+        <div class="logo">PDF<strong>RAG</strong></div>  
         <div class="badge">G+D INTELLIGENCE</div>  
-    </div>  
-    <div class="model-pill">  
-        <span class="dot"></span>  
-        GPT-4.1 &middot; text-embedding-3-small  
     </div>  
 </header>
 
@@ -45,10 +41,10 @@
             <label class="chunk-mode-label-text" for="chunkModeSelect">Chunking Mode</label>  
             <div class="custom-select-wrap">  
                 <select id="chunkModeSelect" class="chunk-select" onchange="updateChunkMode()">  
-                    <option id="chunkmodeOptionRecursive" class ="chunkmodeoption" value="recursive">&#x26A1; Recursive (Fast)</option>  
-                    <option id="chunkmodeOptionSemantic" class ="chunkmodeoption" value="semantic">&#x1F9E0; Semantic (Smart)</option>  
-                    <option id="chunkmodeOptionSliding" class ="chunkmodeoption" value="sliding">&#x1FA9F; Sliding Window</option>  
-                    <option id="chunkmodeOptionFixed" class ="chunkmodeoption" value="fixed">&#x1F4CF; Fixed Size</option>  
+                    <option id="chunkmodeOptionRecursive" class ="chunkmodeoption" value="recursive">Recursive (Fast)</option>  
+                    <option id="chunkmodeOptionSemantic" class ="chunkmodeoption" value="semantic">Semantic (Smart)</option>  
+                    <option id="chunkmodeOptionSliding" class ="chunkmodeoption" value="sliding">Sliding Window</option>  
+                    <option id="chunkmodeOptionFixed" class ="chunkmodeoption" value="fixed">Fixed Size</option>  
                 </select>  
                 <span class="select-arrow">&#x25BE;</span>  
             </div>  
@@ -60,8 +56,10 @@
             <button class="btn-process" id="processBtn" disabled onclick="ingestFiles()">  
                 &#x26A1; Process &amp; Embed  
             </button>  
-            <button class="btn-clear-all" onclick="clearAll()" title="Delete all documents from vector store">  
-                &#x1F5D1;  
+            <button class="btn-clear-all" onclick="clearAll()" title="Delete all documents from vector store" aria-label="Delete all documents">  
+                <svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false">  
+                    <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 7h2v8h-2v-8zm4 0h2v8h-2v-8zM7 10h2v8H7v-8z"></path>  
+                </svg>  
             </button>  
         </div>
         <div class="query-settings-wrap">  
@@ -183,6 +181,19 @@
         </div>  
         <div class="modal-meta" id="modalMeta"></div>  
         <div class="modal-body" id="modalBody"></div>  
+    </div>  
+</div>
+
+<div class="modal-overlay" id="chunksWindowModal" onclick="closeChunksWindow()">  
+    <div class="modal-box modal-chunks-window" onclick="event.stopPropagation()">  
+        <div class="modal-header">  
+            <div class="modal-title" id="chunksWindowTitle">All Chunks</div>  
+            <button class="modal-close" onclick="closeChunksWindow()">&#x2715;</button>  
+        </div>  
+        <div class="chunks-window-controls">  
+            <input type="text" id="chunksSearchInput" class="chunks-search" placeholder="Search chunks..." oninput="filterChunks()">  
+        </div>  
+        <div class="chunks-window-body" id="chunksWindowBody"></div>  
     </div>  
 </div>
 

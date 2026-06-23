@@ -26,6 +26,7 @@ class RetrievalIntent(Enum):
     COMPARISON = "comparison"         # Compare X and Y → Multi-group retrieval
     TARGETED_EXTRACTION = "targeted_extraction"  # Extract specific table/list subset
     GLOBAL_EXTRACTION = "global_extraction"      # Enumerate all matching items
+    POSITIONAL = "positional"         # Select item(s) by place/order (last two, 5th, ...)
     ANALYSIS = "analysis"             # Why/how/risks → Cross-section reasoning
     AMBIGUOUS = "ambiguous"           # Intent unclear, needs clarification
 
@@ -111,8 +112,46 @@ class ContextResolver:
                 if active_group.all_turns:
                     last_turn = active_group.all_turns[-1]
                     log.info(f"[RESOLVER]    Last turn query: {last_turn.query[:60]} | dependency: {last_turn.dependency_type}")
-                active_group_summary = active_group.summary
                 active_group_topic = active_group.topic
+
+                # Build the classifier's view of this group's history. Two correctness
+                # requirements:
+                #  (a) RACE-SAFE: never read a half-written summary — gate on summary_ready
+                #      so a query landing mid-summarization can't see a partial summary.
+                #  (b) NO CONTEXT GAP: a READY summary covers only the turns up to the last
+                #      roll-up; turns added AFTER it live in group.recent_turns and are NOT
+                #      in the summary. So we ALWAYS append those unsummarized recent turns —
+                #      otherwise a follow-up to one of them would be invisible until the next
+                #      roll-up. When no summary is ready yet, send the raw Q&A of all turns
+                #      (the whole "5 queries + outputs" path).
+                def _turns_to_text(turns):
+                    lines = []
+                    for t in turns:
+                        ans = (t.full_answer or t.memory_summary or "").strip()
+                        if t.query:
+                            lines.append(f"User: {t.query.strip()}")
+                        if ans:
+                            lines.append(f"Assistant: {ans[:600]}")
+                    return "\n".join(lines)
+
+                if active_group.summary_ready and (active_group.summary or "").strip():
+                    parts = [f"Summary of earlier turns: {active_group.summary.strip()}"]
+                    recent_text = _turns_to_text(active_group.recent_turns)
+                    if recent_text:
+                        parts.append("Turns since that summary:\n" + recent_text)
+                    active_group_summary = "\n\n".join(parts)
+                    log.info(
+                        f"[RESOLVER] Classifier context = READY summary + "
+                        f"{len(active_group.recent_turns)} unsummarized recent turn(s)"
+                    )
+                else:
+                    raw_text = _turns_to_text(active_group.all_turns)
+                    if raw_text:
+                        active_group_summary = raw_text
+                        log.info(
+                            f"[RESOLVER] Summary not ready (flag={active_group.summary_ready}) — "
+                            f"using {len(active_group.all_turns)} raw turn(s) of Q&A as classifier context"
+                        )
             else:
                 log.warning(f"[RESOLVER] ⚠️ Active group {active_group_id} NOT FOUND in memory")
         else:
@@ -216,6 +255,18 @@ class ContextResolver:
         # optional file pinning, generated separately and combined. When present (>=2),
         # they REPLACE the flat sub-query split (and its extra per-subject LLM calls).
         segments = self._build_segments(llm_result.get("segments", []), available_documents)
+        # Comparison requests should stay as ONE combined operation unless the LLM
+        # produced true mixed-operation segments (e.g., compare A/B AND extract C).
+        # If a top-level comparison was decomposed into non-comparison per-subject
+        # segments, ignore those segments and keep the single comparison flow.
+        if segments and retrieval_intent == RetrievalIntent.COMPARISON:
+            seg_intents = {str(seg.get("intent", "")).strip().lower() for seg in segments}
+            if "comparison" not in seg_intents:
+                log.info(
+                    "[RESOLVER] Top-level intent is comparison but segments are non-comparison "
+                    "(likely per-subject split) — ignoring segments and using single comparison retrieval"
+                )
+                segments = []
         if segments:
             log.info(f"[RESOLVER] Compound query — {len(segments)} segments (per-segment intent; skipping flat sub-query split)")
             for seg in segments:
@@ -253,6 +304,39 @@ class ContextResolver:
                 for sq in sub_queries:
                     if sq.get("filenames"):
                         log.info(f"[RESOLVER] Sub-query '{sq.get('query', '')[:40]}' pinned to file(s): {sq['filenames']}")
+
+            # MIXED-OPERATION PROMOTION: a multi_group request whose sub-queries carry
+            # DIFFERENT intents (e.g. "compare A & B AND summarize C") is really several
+            # DISTINCT operations, not one woven answer. Generating all of them under the
+            # single top-level intent collapses each part (a global_summary part squeezed
+            # into a comparison blurb). So when the sub-queries span >= 2 distinct intents,
+            # promote them to SEGMENTS — each part then retrieves AND generates with its
+            # OWN intent (its own depth + map-reduce), and the parts are combined into one
+            # sectioned answer. A homogeneous multi_group (e.g. a pure comparison, all
+            # sub-queries 'comparison') is NOT promoted: it stays the single balanced
+            # answer. No extra LLM calls — sub-queries already carry their intent/files.
+            distinct_intents = {
+                (sq.get("intent") or "").strip().lower()
+                for sq in sub_queries
+                if (sq.get("intent") or "").strip()
+            }
+            if len(distinct_intents) >= 2:
+                segments = [
+                    {
+                        "query": sq.get("query", ""),
+                        "intent": (sq.get("intent") or "factual").strip().lower(),
+                        "files": sq.get("filenames"),
+                        "title": sq.get("topic") or sq.get("query", "")[:40],
+                    }
+                    for sq in sub_queries
+                    if (sq.get("query") or "").strip()
+                ]
+                log.info(
+                    f"[RESOLVER] Mixed-operation multi_group (intents={sorted(distinct_intents)}) "
+                    f"— promoting {len(segments)} sub-queries to per-intent segments"
+                )
+                for seg in segments:
+                    log.info(f"[RESOLVER]   segment: '{seg['title']}' | intent={seg['intent']} | files={seg['files']}")
         
         # Step 5: Find relevant groups based on dependency type
         # YOUR PIPELINE: For DEPENDENT queries, check if belongs to active group FIRST
@@ -306,42 +390,97 @@ class ContextResolver:
         # AMBIGUOUS queries: Create group to track clarification attempts
         # DEPENDENT queries: Use active group if available, else search or create
         if dependency_type == DependencyType.INDEPENDENT:
-            # New conversation topic - ALWAYS create a new group, ignoring any passed active_group_id
-            log.info("[RESOLVER] INDEPENDENT query — creating NEW group (new topic)")
-            if not suggested_topic:
-                # Use query as topic if LLM didn't provide one
-                suggested_topic = query[:50].title()
-            
-            try:
-                new_group = self.memory_manager.create_conversation_group(suggested_topic)
-                active_group_id = new_group.group_id  # Override any passed active_group_id
+            # An INDEPENDENT query doesn't depend on the ACTIVE group — but per the routing
+            # design it may still belong to a DIFFERENT existing group in the collection
+            # (the user returning to an earlier topic). So FIRST search the other groups
+            # (the relevant_groups embedding match) and REUSE a strongly-matching one for
+            # continuity; only create a brand-new group when nothing is a confident match.
+            # This is exactly what the group-summary embeddings are for: referring back to
+            # the history of previous groups across the whole collection. (Only summarized
+            # groups carry an embedding, so reuse naturally targets established topics.)
+            REUSE_SIMILARITY = 0.75
+            best_group = None
+            best_sim = 0.0
+            for g in relevant_groups:
+                grp = g.get("group")
+                sim = g.get("similarity", 0) or 0
+                if grp is not None and sim >= REUSE_SIMILARITY and sim > best_sim:
+                    best_group, best_sim = grp, sim
+            if best_group is not None:
+                active_group_id = best_group.group_id
                 should_create_new_group = False
-                log.info(f"[RESOLVER] ✅ Created new topic group {active_group_id}: {suggested_topic}")
-            except Exception as e:
-                log.warning(f"[RESOLVER] ⚠️ Failed to create group: {e}")
-                should_create_new_group = True
+                log.info(
+                    f"[RESOLVER] INDEPENDENT query MATCHES existing group {active_group_id} "
+                    f"('{best_group.topic}', similarity={best_sim:.3f}) — reusing it instead "
+                    f"of creating a duplicate"
+                )
+            else:
+                log.info("[RESOLVER] INDEPENDENT query — no strong existing-group match; creating NEW group")
+                if not suggested_topic:
+                    # Use query as topic if LLM didn't provide one
+                    suggested_topic = query[:50].title()
+                try:
+                    new_group = self.memory_manager.create_conversation_group(suggested_topic)
+                    active_group_id = new_group.group_id  # Override any passed active_group_id
+                    should_create_new_group = False
+                    log.info(f"[RESOLVER] ✅ Created new topic group {active_group_id}: {suggested_topic}")
+                except Exception as e:
+                    log.warning(f"[RESOLVER] ⚠️ Failed to create group: {e}")
+                    should_create_new_group = True
         
         elif dependency_type == DependencyType.AMBIGUOUS:
-            # Ambiguous query - create group to track clarification conversation
-            log.info("[RESOLVER] AMBIGUOUS query — creating group for clarification attempts")
-            if not suggested_topic:
-                suggested_topic = f"Clarification: {query[:40].title()}"
-            
-            try:
-                new_group = self.memory_manager.create_conversation_group(suggested_topic)
-                active_group_id = new_group.group_id
+            # Ambiguous query — track the clarification IN the existing active group
+            # rather than spawning a throwaway "Clarification:" group. A dedicated group
+            # would hold just this one ambiguous turn and then be orphaned the moment the
+            # user clarifies and the query resolves into some other group — accumulating
+            # junk one-turn groups. Reusing the active group keeps the clarification in the
+            # same thread the user was already in. Only when there is NO active group to
+            # attach to do we create one so the turn still has somewhere to live.
+            if active_group_id and active_group is not None:
+                log.info(f"[RESOLVER] AMBIGUOUS query — tracking clarification in active group {active_group_id}")
                 should_create_new_group = False
-                log.info(f"[RESOLVER] ✅ Created clarification group {active_group_id}: {suggested_topic}")
-            except Exception as e:
-                log.warning(f"[RESOLVER] ⚠️ Failed to create clarification group: {e}")
-                should_create_new_group = False  # Don't try to create again
+            else:
+                log.info("[RESOLVER] AMBIGUOUS query with no active group — creating a group for clarification")
+                if not suggested_topic:
+                    suggested_topic = f"Clarification: {query[:40].title()}"
+                try:
+                    new_group = self.memory_manager.create_conversation_group(suggested_topic)
+                    active_group_id = new_group.group_id
+                    should_create_new_group = False
+                    log.info(f"[RESOLVER] ✅ Created clarification group {active_group_id}: {suggested_topic}")
+                except Exception as e:
+                    log.warning(f"[RESOLVER] ⚠️ Failed to create clarification group: {e}")
+                    should_create_new_group = False  # Don't try to create again
         
         elif dependency_type == DependencyType.DEPENDENT:
             if active_group_id and belongs_to_active:
                 # Already using active group ✅
                 log.info("[RESOLVER] Using active group — no new group creation needed")
-            elif not relevant_groups:
-                # No relevant groups found — create new one
+            elif relevant_groups:
+                # The query does NOT belong to the ACTIVE group, but a DIFFERENT existing
+                # group matched (the user is continuing an earlier, non-active topic). Switch
+                # the active group to that match so the turn is STORED where its context is
+                # loaded FROM — otherwise context comes from the matched group while the turn
+                # gets filed under the stale active group, desyncing the two.
+                best = max(relevant_groups, key=lambda g: g.get("similarity", 0) or 0)
+                matched = best.get("group")
+                if matched is not None:
+                    active_group_id = matched.group_id
+                    should_create_new_group = False
+                    log.info(
+                        f"[RESOLVER] DEPENDENT query belongs to EXISTING group {active_group_id} "
+                        f"('{matched.topic}', similarity={best.get('similarity', 0):.3f}) — switching to it"
+                    )
+                else:
+                    # Defensive: a relevant entry with no group object — create a new group.
+                    if not suggested_topic:
+                        suggested_topic = query[:50].title()
+                    new_group = self.memory_manager.create_conversation_group(suggested_topic)
+                    active_group_id = new_group.group_id
+                    should_create_new_group = False
+                    log.info(f"[RESOLVER] ✅ Created group {active_group_id}: {suggested_topic}")
+            else:
+                # No active match AND no relevant groups found — create a new one.
                 log.info("[RESOLVER] DEPENDENT query with no relevant groups — auto-creating new group")
                 if not suggested_topic:
                     # Use query as topic if LLM didn't provide one
@@ -511,9 +650,10 @@ class ContextResolver:
             List of relevant groups with similarity scores (filtered by threshold)
         """
         try:
-            # Generate query embedding
-            embeddings = self.embedder.embed_texts([query])
-            query_embedding = embeddings[0] if embeddings else None
+            # Generate query embedding. Use embed_query (single-text, cached) so this and
+            # the later document-chunk retrieval of the SAME standalone query share one
+            # embedding instead of paying for two identical API calls.
+            query_embedding = self.embedder.embed_query(query)
             
             if not query_embedding:
                 log.warning("[RESOLVER] Failed to embed query")
@@ -618,26 +758,31 @@ class ContextResolver:
         # Check if summary is ready (not still being generated)
         summary_ready = group_context.get("summary_ready", False)
         
+        recent = group_context.get("recent_turns", [])
         if summary_ready and group_context.get("summary"):
-            # Summary is complete, use it (more concise)
+            # The summary covers turns up to the last roll-up. Include it AND the turns
+            # added since (recent_turns) — the summary does NOT contain those, so without
+            # them a follow-up to a post-summary turn would lose that turn's context.
             parts.append(f"\n**Summary:** {group_context['summary']}")
-            log.info("[RESOLVER] Using prepared summary for context")
-        else:
-            # Summary not ready (being generated) or doesn't exist
-            # Use all recent turns to provide complete context
-            recent = group_context.get("recent_turns", [])
             if recent:
-                log.info(f"[RESOLVER] Summary not ready, using {len(recent)} recent turns for context")
-                parts.append("\n**Recent Discussion:**")
-                for turn in recent:  # All recent turns, not just last 3
+                parts.append("\n**Since that summary:**")
+                for turn in recent:
                     parts.append(f"- Q: {turn.query}")
                     parts.append(f"  A: {turn.memory_summary}")
+            log.info(f"[RESOLVER] Context = summary + {len(recent)} recent turn(s)")
+        elif recent:
+            # No ready summary yet — use the recent (unsummarized) turns directly.
+            log.info(f"[RESOLVER] Summary not ready, using {len(recent)} recent turns for context")
+            parts.append("\n**Recent Discussion:**")
+            for turn in recent:  # All recent turns, not just last 3
+                parts.append(f"- Q: {turn.query}")
+                parts.append(f"  A: {turn.memory_summary}")
+        else:
+            # No recent turns and no ready summary — fall back to any stored summary.
+            if group_context.get("summary"):
+                parts.append(f"\n**Summary:** {group_context['summary']}")
             else:
-                # Fallback: if no recent turns and no summary, provide minimal context
-                if group_context.get("summary"):
-                    parts.append(f"\n**Summary:** {group_context['summary']}")
-                else:
-                    parts.append("\n(No context available)")
+                parts.append("\n(No context available)")
         
         return "\n".join(parts)
     
@@ -660,6 +805,7 @@ class ContextResolver:
             "comparison": RetrievalIntent.COMPARISON,
             "targeted_extraction": RetrievalIntent.TARGETED_EXTRACTION,
             "global_extraction": RetrievalIntent.GLOBAL_EXTRACTION,
+            "positional": RetrievalIntent.POSITIONAL,
             "analysis": RetrievalIntent.ANALYSIS,
             "ambiguous": RetrievalIntent.AMBIGUOUS,
         }

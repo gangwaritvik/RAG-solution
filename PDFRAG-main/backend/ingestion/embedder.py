@@ -1,4 +1,6 @@
 import httpx  
+import threading
+from collections import OrderedDict
 from typing import List  
 from concurrent.futures import ThreadPoolExecutor, as_completed  
 from openai import AzureOpenAI  
@@ -21,6 +23,16 @@ class Embedder:
         )  
         self.model = EMBEDDING_MODEL  
         self.max_workers = max_workers
+
+        # Short-lived, thread-safe cache for SINGLE-QUERY embeddings. Embeddings are
+        # deterministic for a given text+model, so the same query text always maps to the
+        # same vector. Within one user request the standalone query is embedded twice (once
+        # to match conversation groups, once to retrieve document chunks); caching makes the
+        # second a cache hit and saves a network round-trip. Bounded so it never grows
+        # unboundedly; only embed_query uses it (document-chunk batches are NOT cached).
+        self._query_cache: "OrderedDict[str, List[float]]" = OrderedDict()
+        self._query_cache_lock = threading.Lock()
+        self._query_cache_max = 32
 
         log.info(f"Embedder ✅ initialized | max_workers: {max_workers}")
 
@@ -107,6 +119,15 @@ class Embedder:
         return all_embeddings
 
     def embed_query(self, query: str) -> List[float]:  
+        # Serve repeated embeddings of the SAME query text from the cache (e.g. the group
+        # match and the chunk retrieval within one request both embed the standalone query).
+        with self._query_cache_lock:
+            cached = self._query_cache.get(query)
+            if cached is not None:
+                self._query_cache.move_to_end(query)  # mark most-recently-used
+                log.info("[EMBED] ✅ Query embedding served from cache (no API call)")
+                return cached
+
         log.info(f"[EMBED] Embedding query: '{query[:60]}...' " if len(query) > 60 else f"[EMBED] Embedding query: '{query}'")
 
         try:  
@@ -116,6 +137,11 @@ class Embedder:
             )  
             vec = response.data[0].embedding  
             log.info(f"[EMBED] ✅ Query embedded — dim: {len(vec)}")  
+            with self._query_cache_lock:
+                self._query_cache[query] = vec
+                self._query_cache.move_to_end(query)
+                while len(self._query_cache) > self._query_cache_max:
+                    self._query_cache.popitem(last=False)  # evict least-recently-used
             return vec
 
         except Exception as e:  

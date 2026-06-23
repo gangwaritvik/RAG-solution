@@ -33,7 +33,7 @@ class BackgroundSummarizer:
         self.embedder = embedder
         self.max_workers = max_workers
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
-        self.active_summarizations: Dict[str, threading.Thread] = {}
+        self.active_summarizations: Dict[str, Any] = {}  # group_id -> claimed sentinel (presence = in-progress)
         self._lock = threading.Lock()
         
         log.info(f"[BG_SUMMARIZER] Initialized with {max_workers} workers")
@@ -61,11 +61,16 @@ class BackgroundSummarizer:
         if not self.memory_manager.should_summarize_group(group_id, threshold):
             return False
         
-        # Check if already summarizing this group
+        # ATOMIC check-and-claim under ONE lock: decide AND mark the group in-progress in
+        # the same critical section. This prevents two callers from both passing the check,
+        # and guarantees the key EXISTS before the worker's finally-clause runs — otherwise
+        # a fast worker could clear a key that is only added afterwards, wedging the group
+        # as "summarizing" forever and blocking all future roll-ups.
         with self._lock:
             if group_id in self.active_summarizations:
                 log.info(f"[BG_SUMMARIZER] Group {group_id} already being summarized")
                 return False
+            self.active_summarizations[group_id] = True  # claim slot (presence is what matters)
         
         # Trigger background summarization
         log.info(f"[BG_SUMMARIZER] Triggering summarization for group {group_id}")
@@ -84,15 +89,14 @@ class BackgroundSummarizer:
             group_id: The group to summarize
             callback: Optional callback function
         """
-        future = self.executor.submit(
+        # The slot in active_summarizations was already claimed atomically by the caller
+        # (summarize_if_needed) BEFORE this submit, so we must NOT re-add it here. The
+        # worker's finally-clause is the single place that clears it.
+        self.executor.submit(
             self._summarize_group_worker,
             group_id,
             callback
         )
-        
-        # Track active summarization
-        with self._lock:
-            self.active_summarizations[group_id] = threading.current_thread()
         
         log.info(f"[BG_SUMMARIZER] [BACKGROUND] Submitted summarization task for {group_id}")
     
@@ -121,13 +125,15 @@ class BackgroundSummarizer:
                 log.warning(f"[BG_SUMMARIZER] [BACKGROUND] ⚠️ Group not found: {group_id}")
                 return False
             
-            # Get unsummarized turns
-            recent_turns = group.recent_turns
+            # Atomically snapshot the unsummarized turns + their count. We summarize THIS
+            # snapshot and later clear exactly this many, so a query that arrives while the
+            # summary is generating is never lost from the recent buffer.
+            recent_turns, num_summarized = self.memory_manager.snapshot_recent_turns(group_id)
             if not recent_turns:
                 log.warning(f"[BG_SUMMARIZER] [BACKGROUND] ⚠️ No recent turns to summarize")
                 return False
             
-            log.info(f"[BG_SUMMARIZER] [BACKGROUND] Found {len(recent_turns)} unsummarized turns")
+            log.info(f"[BG_SUMMARIZER] [BACKGROUND] Found {num_summarized} unsummarized turns")
             
             # Build summarization context
             turns_text = self._format_turns_for_summarization(recent_turns)
@@ -152,6 +158,7 @@ class BackgroundSummarizer:
             success = self.memory_manager.update_group_summary(
                 group_id=group_id,
                 summary=summary,
+                summarized_count=num_summarized,
             )
             if not success:
                 log.error(f"[BG_SUMMARIZER] [BACKGROUND] ❌ Failed to save summary")
@@ -201,9 +208,12 @@ class BackgroundSummarizer:
         """
         Format conversation turns for summarization prompt.
 
-        Uses each turn's FULL answer (not the thin per-turn memory_summary) so the
-        summarizer distills from the rich source and doesn't compound compression
-        loss. Falls back to memory_summary only if a full answer isn't stored.
+        The group summary is built STRICTLY from each turn's ORIGINAL full answer
+        (turn.full_answer) — never the compressed per-turn memory_summary — so the
+        summary distills from the rich source and never compounds compression loss.
+        The memory_summary is used ONLY as a last-resort safety net for a turn that
+        somehow has no stored full answer, and that fallback is logged as a warning so
+        it never happens silently.
 
         Args:
             turns: List of ConversationTurn objects
@@ -212,10 +222,28 @@ class BackgroundSummarizer:
             Formatted string for LLM
         """
         lines = []
-        for i, turn in enumerate(turns, 1):
-            answer_text = (getattr(turn, "full_answer", "") or turn.memory_summary or "").strip()
-            lines.append(f"Q{i}: {turn.query}")
-            lines.append(f"A{i}: {answer_text}")
+        idx = 0
+        for turn in turns:
+            # Skip AMBIGUOUS turns: their "answer" is just a request for clarification
+            # ('could you specify which X?'), which would pollute the group summary. The
+            # user's real, clarified question is a SEPARATE non-ambiguous turn that IS
+            # included — so the summary reflects actual content, not the clarifying detour.
+            if getattr(turn, "dependency_type", None) == "ambiguous":
+                continue
+            idx += 1
+            full_answer = (getattr(turn, "full_answer", "") or "").strip()
+            if full_answer:
+                answer_text = full_answer
+            else:
+                # Safety net only — should not normally happen since _store_turn always
+                # persists the full answer. Surface it so a missing answer is visible.
+                answer_text = (turn.memory_summary or "").strip()
+                log.warning(
+                    f"[BG_SUMMARIZER] Turn {getattr(turn, 'turn_id', '?')} has no full_answer — "
+                    f"falling back to memory_summary for the group summary"
+                )
+            lines.append(f"Q{idx}: {turn.query}")
+            lines.append(f"A{idx}: {answer_text}")
             lines.append("")
 
         return "\n".join(lines)

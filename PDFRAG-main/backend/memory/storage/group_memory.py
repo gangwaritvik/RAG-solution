@@ -4,6 +4,7 @@ from dataclasses import dataclass, field, asdict
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 import json
+import threading
 
 
 @dataclass
@@ -94,9 +95,19 @@ class Group:
         """Count turns since last summary (or all if never summarized)."""
         return len(self.recent_turns)
     
-    def clear_recent_turns(self) -> None:
-        """Clear recent turns after summarization."""
-        self.recent_turns.clear()
+    def clear_recent_turns(self, count: Optional[int] = None) -> None:
+        """Remove summarized turns from the recent (unsummarized) buffer.
+
+        When ``count`` is given, remove ONLY the first ``count`` turns (the ones that
+        were actually summarized). Turns appended AFTER the summarizer took its snapshot
+        — i.e. queries that arrived while the summary was being generated — are at the
+        end of the list and are PRESERVED, so they still count toward the next roll-up
+        and stay in the rolling context. ``count=None`` clears everything (legacy).
+        """
+        if count is None:
+            self.recent_turns.clear()
+        else:
+            del self.recent_turns[:count]
 
 
 class GroupMemory:
@@ -106,6 +117,10 @@ class GroupMemory:
         """Initialize group memory."""
         self.groups: Dict[str, Group] = {}
         self.active_group_id: Optional[str] = None
+        # Guards turn-list mutations so the summarizer's snapshot-then-clear can never
+        # race with a concurrent add_turn (request thread). Reentrant so nested calls
+        # within one thread are safe.
+        self._turn_lock = threading.RLock()
     
     def create_group(self, group_id: str, topic: str) -> Group:
         """Create a new conversation group."""
@@ -137,29 +152,51 @@ class GroupMemory:
         return list(self.groups.values())
     
     def add_turn_to_group(self, group_id: str, turn: ConversationTurn) -> bool:
-        """Add a turn to a specific group."""
-        group = self.get_group(group_id)
-        if group:
-            group.add_turn(turn)
-            return True
+        """Add a turn to a specific group (thread-safe)."""
+        with self._turn_lock:
+            group = self.get_group(group_id)
+            if group:
+                group.add_turn(turn)
+                return True
         return False
+
+    def snapshot_recent_turns(self, group_id: str):
+        """Atomically copy a group's current unsummarized turns + their count.
+
+        The summarizer summarizes exactly this snapshot, then clears exactly this many
+        turns — so any turn appended after the snapshot is never lost to the clear.
+        Returns ``(turns_copy, count)``; ``([], 0)`` if the group is missing.
+        """
+        with self._turn_lock:
+            group = self.get_group(group_id)
+            if not group:
+                return [], 0
+            snap = list(group.recent_turns)
+            return snap, len(snap)
     
     def update_group_summary(
         self, 
         group_id: str, 
         summary: str, 
-        embedding: Optional[List[float]] = None
+        embedding: Optional[List[float]] = None,
+        summarized_count: Optional[int] = None
     ) -> bool:
-        """Update group summary and optionally its embedding."""
-        group = self.get_group(group_id)
-        if group:
-            group.summary = summary
-            if embedding:
-                group.summary_embedding = embedding
-            group.summary_ready = True
-            group.clear_recent_turns()
-            group.updated_at = datetime.utcnow().isoformat()
-            return True
+        """Update group summary and clear ONLY the turns that were summarized.
+
+        ``summarized_count`` is the size of the snapshot the summarizer worked from;
+        clearing exactly that many (under the lock) preserves any turns that arrived
+        mid-summarization. Falls back to clearing all when not provided (legacy).
+        """
+        with self._turn_lock:
+            group = self.get_group(group_id)
+            if group:
+                group.summary = summary
+                if embedding:
+                    group.summary_embedding = embedding
+                group.summary_ready = True
+                group.clear_recent_turns(count=summarized_count)
+                group.updated_at = datetime.utcnow().isoformat()
+                return True
         return False
     
     def should_summarize_group(self, group_id: str, threshold: int = 5) -> bool:
@@ -175,8 +212,3 @@ class GroupMemory:
             g for g in self.groups.values() 
             if topic_substring.lower() in g.topic.lower()
         ]
-    
-    def clear_all(self) -> None:
-        """Clear all groups (for testing/reset)."""
-        self.groups.clear()
-        self.active_group_id = None

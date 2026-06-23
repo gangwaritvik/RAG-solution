@@ -65,7 +65,6 @@ backend/
 - **Purpose**: Generic parallel execution utilities
 - **Key Methods**:
   - `execute_parallel()`: Execute tasks in parallel
-  - `execute_parallel_with_fallback()`: Execute with error fallback
 - **Features**:
   - Reusable for any parallel operations
   - Proper logging and error handling

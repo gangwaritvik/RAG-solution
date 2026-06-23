@@ -1,0 +1,359 @@
+2026-06-23 10:46:44 | INFO     | document_loader      | DocumentLoader initialized — upload_dir: c:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\uploads
+2026-06-23 10:46:44 | INFO     | document_loader      | Supported formats: ['.pdf', '.docx']
+2026-06-23 10:46:44 | INFO     | chunker              | Chunker initialized — chunk_size: 1000 | overlap: 300
+2026-06-23 10:46:44 | INFO     | embedder             | Embedder initializing — endpoint: https://az-oai-collection.openai.azure.com/ | model: text-embedding-ada-002
+2026-06-23 10:46:44 | INFO     | embedder             | Embedder ✅ initialized | max_workers: 10
+2026-06-23 10:46:44 | INFO     | vector_store         | VectorStore initializing — persist_dir: c:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\chroma_db
+2026-06-23 10:46:45 | INFO     | vector_store         | VectorStore ✅ Collection loaded — 655 existing vectors
+2026-06-23 10:46:46 | INFO     | memory_manager       | [MEMORY_MGR] Initializing conversation memory manager
+2026-06-23 10:46:46 | INFO     | memory_store         | [MEMORY_STORE] Initializing with Chroma DB at c:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\chroma_db
+2026-06-23 10:46:46 | INFO     | memory_store         | [MEMORY_STORE] ✅ Collections loaded — metadata: 12, summaries: 0
+2026-06-23 10:46:46 | INFO     | memory_store         | [MEMORY_STORE] ✅ Retrieved 12 groups
+2026-06-23 10:46:46 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Loaded 12 groups from storage
+2026-06-23 10:46:46 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Manager initialized
+2026-06-23 10:46:46 | INFO     | main                 | [STARTUP] Conversation memory manager initialized
+2026-06-23 10:46:46 | INFO     | context_resolver     | [RESOLVER] ✅ LLM classifier initialized
+2026-06-23 10:46:46 | INFO     | multi_group_processor | [MULTI_GROUP] ✅ Initialized with max_workers=5
+2026-06-23 10:46:46 | INFO     | background_summarizer | [BG_SUMMARIZER] Initialized with 3 workers
+2026-06-23 10:46:46 | INFO     | main                 | [STARTUP] Vector store ready — session started
+2026-06-23 10:46:46 | INFO     | main                 | [STARTUP] Conversation memory manager initialized
+2026-06-23 10:46:46 | DEBUG    | asyncio              | Using proactor: IocpProactor
+2026-06-23 10:46:58 | INFO     | main                 | [INGEST_BG] Starting background processing for 1 file(s)
+2026-06-23 10:46:58 | INFO     | main                 | [CHUNKER] Selected: RecursiveCharacterTextSplitter (default)
+2026-06-23 10:46:58 | INFO     | main                 | [INGEST_BG] Processing: electricity.pdf (2491059 bytes)
+2026-06-23 10:46:58 | INFO     | main                 | [INGEST_BG] STEP 1 — Loading electricity.pdf
+2026-06-23 10:46:58 | INFO     | document_loader      | [LOAD] Processing 1 file(s)
+2026-06-23 10:46:58 | INFO     | document_loader      | [SAVE] electricity.pdf → c:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\uploads\2da2e0cc4e6f469082a418c1bccee012.pdf (2491059 bytes)
+2026-06-23 10:46:58 | INFO     | document_loader      | [LOAD] Using PDFLoader for electricity.pdf
+2026-06-23 10:46:58 | INFO     | pdf_loader           | [LOAD PDF] electricity.pdf — using PyMuPDF (text + tables)
+2026-06-23 10:46:58 | INFO     | pdf_loader           | [LOAD PDF] 25 pages found
+2026-06-23 10:46:58 | INFO     | main                 | [INGEST_BG] Starting background processing for 1 file(s)
+2026-06-23 10:46:58 | INFO     | main                 | [CHUNKER] Selected: RecursiveCharacterTextSplitter (default)
+2026-06-23 10:46:58 | INFO     | main                 | [INGEST_BG] Processing: iso27001.pdf (487089 bytes)
+2026-06-23 10:46:58 | INFO     | main                 | [INGEST_BG] STEP 1 — Loading iso27001.pdf
+2026-06-23 10:46:58 | INFO     | document_loader      | [LOAD] Processing 1 file(s)
+2026-06-23 10:46:58 | INFO     | document_loader      | [SAVE] iso27001.pdf → c:\Users\gangwarr\Desktop\PDFRAG-main\PDFRAG-main\backend\storage\uploads\a2e6ff7bf78e44c782d0a6f8dd56b0ca.pdf (487089 bytes)
+2026-06-23 10:46:58 | INFO     | document_loader      | [LOAD] Using PDFLoader for iso27001.pdf
+2026-06-23 10:46:58 | INFO     | pdf_loader           | [LOAD PDF] iso27001.pdf — using PyMuPDF (text + tables)
+2026-06-23 10:46:58 | INFO     | pdf_loader           | [LOAD PDF] 26 pages found
+2026-06-23 10:46:58 | INFO     | pdf_loader           | [LOAD PDF] Page 6: extracted 1 table(s)
+2026-06-23 10:46:58 | INFO     | pdf_loader           | [LOAD PDF] Page 2: extracted 1 table(s)
+2026-06-23 10:46:59 | INFO     | pdf_loader           | [LOAD PDF] Page 9: extracted 1 table(s)
+2026-06-23 10:46:59 | INFO     | pdf_loader           | [LOAD PDF] Page 4: extracted 1 table(s)
+2026-06-23 10:47:00 | INFO     | pdf_loader           | [LOAD PDF] Page 8: extracted 1 table(s)
+2026-06-23 10:47:00 | INFO     | pdf_loader           | [LOAD PDF] Page 12: extracted 1 table(s)
+2026-06-23 10:47:00 | INFO     | pdf_loader           | [LOAD PDF] Page 12: extracted 1 table(s)
+2026-06-23 10:47:00 | INFO     | pdf_loader           | [LOAD PDF] Page 13: extracted 1 table(s)
+2026-06-23 10:47:01 | INFO     | pdf_loader           | [LOAD PDF] Page 17: extracted 1 table(s)
+2026-06-23 10:47:01 | INFO     | pdf_loader           | [LOAD PDF] Page 17: extracted 1 table(s)
+2026-06-23 10:47:01 | INFO     | pdf_loader           | [LOAD PDF] Page 18: extracted 1 table(s)
+2026-06-23 10:47:02 | INFO     | pdf_loader           | [LOAD PDF] Page 18: extracted 1 table(s)
+2026-06-23 10:47:02 | INFO     | pdf_loader           | [LOAD PDF] Page 19: extracted 1 table(s)
+2026-06-23 10:47:02 | INFO     | pdf_loader           | [LOAD PDF] Page 20: extracted 1 table(s)
+2026-06-23 10:47:03 | INFO     | pdf_loader           | [LOAD PDF] Page 20: extracted 1 table(s)
+2026-06-23 10:47:03 | INFO     | pdf_loader           | [LOAD PDF] Page 21: extracted 1 table(s)
+2026-06-23 10:47:03 | INFO     | pdf_loader           | [LOAD PDF] Page 21: extracted 1 table(s)
+2026-06-23 10:47:04 | INFO     | pdf_loader           | [LOAD PDF] Page 22: extracted 1 table(s)
+2026-06-23 10:47:04 | INFO     | pdf_loader           | [LOAD PDF] Page 24: extracted 1 table(s)
+2026-06-23 10:47:04 | INFO     | pdf_loader           | [LOAD PDF] ✅ electricity.pdf — 25 non-empty pages extracted
+2026-06-23 10:47:04 | INFO     | main                 | [INGEST_BG] STEP 2 — Chunking electricity.pdf (mode: recursive)
+2026-06-23 10:47:04 | INFO     | chunker              | [CHUNK] Processing 1 document(s)
+2026-06-23 10:47:04 | INFO     | chunker              | [CHUNK] Starting — electricity.pdf | 25 pages
+2026-06-23 10:47:04 | DEBUG    | chunker              | [CHUNK] Split complete — 118 raw chunks
+2026-06-23 10:47:04 | INFO     | chunker              | [CHUNK] ✅ electricity.pdf — 25 pages → 118 chunks
+2026-06-23 10:47:04 | INFO     | main                 | [INGEST_BG] STEP 2.5 — Created 118 chunks from electricity.pdf
+2026-06-23 10:47:04 | INFO     | pdf_loader           | [LOAD PDF] Page 23: extracted 1 table(s)
+2026-06-23 10:47:04 | INFO     | main                 | [INGEST_BG] STEP 3 — Embedding 118 chunks from electricity.pdf (batch_size: 50)
+2026-06-23 10:47:04 | INFO     | pdf_loader           | [LOAD PDF] Page 24: extracted 1 table(s)
+2026-06-23 10:47:04 | INFO     | embedder             | [EMBED] Embedding 118 texts in 3 batch(es) | workers: 10
+2026-06-23 10:47:04 | INFO     | pdf_loader           | [LOAD PDF] ✅ iso27001.pdf — 25 non-empty pages extracted
+2026-06-23 10:47:04 | INFO     | main                 | [INGEST_BG] STEP 2 — Chunking iso27001.pdf (mode: recursive)
+2026-06-23 10:47:04 | DEBUG    | embedder             | [EMBED] Batch 1 — 50 texts (thread started)
+2026-06-23 10:47:04 | INFO     | chunker              | [CHUNK] Processing 1 document(s)
+2026-06-23 10:47:04 | DEBUG    | embedder             | [EMBED] Batch 2 — 50 texts (thread started)
+2026-06-23 10:47:04 | INFO     | embedder             | [EMBED] 📤 Batch 1 — Calling Azure OpenAI API for 50 chunks...
+2026-06-23 10:47:04 | DEBUG    | embedder             | [EMBED] Batch 3 — 18 texts (thread started)
+2026-06-23 10:47:04 | INFO     | embedder             | [EMBED] 📤 Batch 2 — Calling Azure OpenAI API for 50 chunks...
+2026-06-23 10:47:04 | INFO     | chunker              | [CHUNK] Starting — iso27001.pdf | 25 pages
+2026-06-23 10:47:04 | INFO     | embedder             | [EMBED] 📤 Batch 3 — Calling Azure OpenAI API for 18 chunks...
+2026-06-23 10:47:04 | DEBUG    | chunker              | [CHUNK] Split complete — 104 raw chunks
+2026-06-23 10:47:04 | INFO     | chunker              | [CHUNK] ✅ iso27001.pdf — 25 pages → 104 chunks
+2026-06-23 10:47:04 | INFO     | main                 | [INGEST_BG] STEP 2.5 — Created 104 chunks from iso27001.pdf
+2026-06-23 10:47:04 | INFO     | main                 | [INGEST_BG] STEP 3 — Embedding 104 chunks from iso27001.pdf (batch_size: 50)
+2026-06-23 10:47:04 | INFO     | embedder             | [EMBED] Embedding 104 texts in 3 batch(es) | workers: 10
+2026-06-23 10:47:04 | DEBUG    | embedder             | [EMBED] Batch 1 — 50 texts (thread started)
+2026-06-23 10:47:04 | INFO     | embedder             | [EMBED] 📤 Batch 1 — Calling Azure OpenAI API for 50 chunks...
+2026-06-23 10:47:04 | DEBUG    | embedder             | [EMBED] Batch 2 — 50 texts (thread started)
+2026-06-23 10:47:04 | DEBUG    | embedder             | [EMBED] Batch 3 — 4 texts (thread started)
+2026-06-23 10:47:04 | INFO     | embedder             | [EMBED] 📤 Batch 2 — Calling Azure OpenAI API for 50 chunks...
+2026-06-23 10:47:04 | INFO     | embedder             | [EMBED] 📤 Batch 3 — Calling Azure OpenAI API for 4 chunks...
+2026-06-23 10:47:06 | INFO     | embedder             | [EMBED] ✅ Batch 3 — 4 texts embedded | dim: 1536 | Total: 12 chunks processed
+2026-06-23 10:47:07 | INFO     | embedder             | [EMBED] ✅ Batch 3 — 18 texts embedded | dim: 1536 | Total: 54 chunks processed
+2026-06-23 10:47:08 | INFO     | embedder             | [EMBED] ✅ Batch 2 — 50 texts embedded | dim: 1536 | Total: 100 chunks processed
+2026-06-23 10:47:08 | INFO     | embedder             | [EMBED] ✅ Batch 2 — 50 texts embedded | dim: 1536 | Total: 100 chunks processed
+2026-06-23 10:47:09 | INFO     | embedder             | [EMBED] ✅ Batch 1 — 50 texts embedded | dim: 1536 | Total: 50 chunks processed
+2026-06-23 10:47:09 | INFO     | embedder             | [EMBED] ✅ All done — 104 embeddings total (concurrent)
+2026-06-23 10:47:09 | INFO     | main                 | [INGEST_BG] ✅ Embedded 104 vectors
+2026-06-23 10:47:09 | INFO     | main                 | [INGEST_BG] STEP 4 — Storing 104 vectors in ChromaDB
+2026-06-23 10:47:09 | INFO     | vector_store         | [STORE] Adding 104 vectors
+2026-06-23 10:47:09 | INFO     | vector_store         | [STORE] ✅ 104 vectors added — total now: 759
+2026-06-23 10:47:09 | INFO     | main                 | [INGEST_BG] ✅ iso27001.pdf — ingested successfully
+2026-06-23 10:47:09 | INFO     | embedder             | [EMBED] ✅ Batch 1 — 50 texts embedded | dim: 1536 | Total: 50 chunks processed
+2026-06-23 10:47:09 | INFO     | main                 | [INGEST_BG] ✅ Complete — 1 doc(s) | 759 total vectors
+2026-06-23 10:47:09 | INFO     | embedder             | [EMBED] ✅ All done — 118 embeddings total (concurrent)
+2026-06-23 10:47:09 | INFO     | main                 | [INGEST_BG] ✅ Embedded 118 vectors
+2026-06-23 10:47:09 | INFO     | main                 | [INGEST_BG] STEP 4 — Storing 118 vectors in ChromaDB
+2026-06-23 10:47:09 | INFO     | vector_store         | [STORE] Adding 118 vectors
+2026-06-23 10:47:09 | INFO     | vector_store         | [STORE] ✅ 118 vectors added — total now: 877
+2026-06-23 10:47:09 | INFO     | main                 | [INGEST_BG] ✅ electricity.pdf — ingested successfully
+2026-06-23 10:47:09 | INFO     | main                 | [INGEST_BG] ✅ Complete — 1 doc(s) | 877 total vectors
+2026-06-23 10:47:09 | INFO     | app                  | [QUERY/STREAM] ▶ 'derive drift velocity' | override=None | retrieve_all=False
+2026-06-23 10:47:09 | INFO     | app                  | [QUERY] STEP 1 — Resolving query context
+2026-06-23 10:47:09 | INFO     | context_resolver     | [RESOLVER] Processing query: derive drift velocity
+2026-06-23 10:47:09 | INFO     | context_resolver     | [RESOLVER] ℹ️ No active_group_id provided (None)
+2026-06-23 10:47:09 | INFO     | context_resolver     | [RESOLVER] Using LLM classification
+2026-06-23 10:47:09 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Classifying: derive drift velocity
+2026-06-23 10:47:12 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Parsed response: independent | analysis
+2026-06-23 10:47:12 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Standalone query: Derive the drift velocity in the context of electricity.
+2026-06-23 10:47:12 | INFO     | llm_classifier       | [LLM_CLASSIFIER] ✅ Classified as:
+2026-06-23 10:47:12 | INFO     | llm_classifier       |   - dependency_type: independent
+2026-06-23 10:47:12 | INFO     | llm_classifier       |   - retrieval_intent: analysis
+2026-06-23 10:47:12 | INFO     | llm_classifier       |   - answer_source: document
+2026-06-23 10:47:12 | INFO     | llm_classifier       |   - standalone_query: Derive the drift velocity in the context of electricity.
+2026-06-23 10:47:12 | INFO     | llm_classifier       |   - reasoning: The query asks for the derivation (reasoning/process) of drift velocity, which is a concept in elect
+2026-06-23 10:47:12 | INFO     | context_resolver     | [RESOLVER] LLM: independent | analysis | belongs=False | answer_source=document
+2026-06-23 10:47:12 | INFO     | context_resolver     | [RESOLVER] Final standalone query: Derive the drift velocity in the context of electricity.
+2026-06-23 10:47:12 | INFO     | context_resolver     | [RESOLVER] Will create new group: Drift velocity derivation
+2026-06-23 10:47:12 | INFO     | embedder             | [EMBED] Embedding query: 'Derive the drift velocity in the context of electricity.'
+2026-06-23 10:47:12 | INFO     | embedder             | [EMBED] ✅ Query embedded — dim: 1536
+2026-06-23 10:47:12 | WARNING  | memory_store         | [MEMORY_STORE] No group summaries indexed yet
+2026-06-23 10:47:12 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Found 0 relevant groups
+2026-06-23 10:47:12 | INFO     | context_resolver     | [RESOLVER] Found 0 groups above threshold 0.3
+2026-06-23 10:47:12 | INFO     | context_resolver     | [RESOLVER] Found 0 relevant groups
+2026-06-23 10:47:12 | INFO     | context_resolver     | [RESOLVER] INDEPENDENT query — no strong existing-group match; creating NEW group
+2026-06-23 10:47:12 | INFO     | memory_store         | [MEMORY_STORE] ✅ Created group: group_f645c489
+2026-06-23 10:47:12 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Created group group_f645c489: Drift velocity derivation
+2026-06-23 10:47:12 | INFO     | context_resolver     | [RESOLVER] ✅ Created new topic group group_f645c489: Drift velocity derivation
+2026-06-23 10:47:12 | INFO     | context_resolver     | [RESOLVER] Query pinned to file(s): ['electricity.pdf']
+2026-06-23 10:47:12 | INFO     | context_resolver     | [RESOLVER] ✅ Context resolution complete
+2026-06-23 10:47:12 | INFO     | app                  | [QUERY] Standalone query: Derive the drift velocity in the context of electricity.
+2026-06-23 10:47:12 | INFO     | app                  | [QUERY] Intent 'analysis' — fetching ALL relevant chunks (not limited by top_k)
+2026-06-23 10:47:12 | INFO     | app                  | [QUERY] STEP 2 — Retrieving relevant chunks
+2026-06-23 10:47:12 | INFO     | retriever            | [RETRIEVER] Query: 'Derive the drift velocity in the context of electricity.' | top_k: 5 | get_all_relevant: True | intent: analysis | top_k_override: None | retrieve_all: False | restrict_filenames: ['electricity.pdf']
+2026-06-23 10:47:12 | INFO     | embedder             | [EMBED] ✅ Query embedding served from cache (no API call)
+2026-06-23 10:47:12 | INFO     | retriever            | [RETRIEVER] Intent 'analysis' → mode=comprehensive | top_k=30 | chunk_threshold=0.1
+2026-06-23 10:47:12 | INFO     | vector_store         | [STORE] Searching top-877 — total vectors: 877 | filter={'filename': 'electricity.pdf'}
+2026-06-23 10:47:12 | INFO     | vector_store         | [STORE] ✅ 443 hits returned | top score: 0.884
+2026-06-23 10:47:12 | INFO     | retriever            | [RETRIEVER] Total vectors fetched: 443
+2026-06-23 10:47:12 | INFO     | retriever            | [RETRIEVER] Doc score — electricity.pdf: 0.882
+2026-06-23 10:47:12 | INFO     | retriever            | [RETRIEVER] ✅ RELEVANT — electricity.pdf (score: 0.882)
+2026-06-23 10:47:12 | INFO     | retriever            | [RETRIEVER] COMPREHENSIVE — electricity.pdf → 30 chunks (threshold 0.1, cap 30)
+2026-06-23 10:47:12 | INFO     | retriever            | [RETRIEVER] Total returned: 30
+2026-06-23 10:47:12 | INFO     | app                  | [QUERY] Retrieved 30 chunks
+2026-06-23 10:47:12 | INFO     | generator            | [GENERATOR] Map-reduce (analysis): 30 chunks → 3 parallel batches (size 10)
+2026-06-23 10:47:12 | INFO     | parallel_executor    | [PARALLEL] Executing 3 map-extract tasks in parallel with 3 workers
+2026-06-23 10:47:17 | INFO     | parallel_executor    | [PARALLEL] Completed 1/3 map-extract tasks
+2026-06-23 10:47:17 | INFO     | parallel_executor    | [PARALLEL] Completed 2/3 map-extract tasks
+2026-06-23 10:47:18 | INFO     | parallel_executor    | [PARALLEL] Completed 3/3 map-extract tasks
+2026-06-23 10:47:18 | INFO     | parallel_executor    | [PARALLEL] ✅ All 3 map-extract tasks completed
+2026-06-23 10:47:18 | INFO     | generator            | [GENERATOR] Stream map-reduce: 3 batches returned content — streaming reduce
+2026-06-23 10:47:21 | INFO     | generator            | [GENERATOR] ✅ Streamed answer generated with memory summary
+2026-06-23 10:47:21 | INFO     | app                  | [QUERY] STEP 4 — Storing turn in conversation memory
+2026-06-23 10:47:22 | INFO     | memory_store         | [MEMORY_STORE] ✅ Updated group: group_f645c489
+2026-06-23 10:47:22 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Added turn turn_75ea6923 to group group_f645c489
+2026-06-23 10:47:22 | INFO     | app                  | [QUERY] ✅ Turn saved to group group_f645c489
+2026-06-23 10:47:33 | INFO     | app                  | [QUERY/STREAM] ▶ 'what is t above' | override=None | retrieve_all=False
+2026-06-23 10:47:33 | INFO     | app                  | [QUERY] STEP 1 — Resolving query context
+2026-06-23 10:47:33 | INFO     | context_resolver     | [RESOLVER] Processing query: what is t above
+2026-06-23 10:47:33 | INFO     | context_resolver     | [RESOLVER] 🔍 Looking for active group: group_f645c489
+2026-06-23 10:47:33 | INFO     | context_resolver     | [RESOLVER] ✅ Active group found | turns: 1 | topic: Drift velocity derivation
+2026-06-23 10:47:33 | INFO     | context_resolver     | [RESOLVER]    Last turn query: derive drift velocity | dependency: independent
+2026-06-23 10:47:33 | INFO     | context_resolver     | [RESOLVER] Summary not ready (flag=False) — using 1 raw turn(s) of Q&A as classifier context
+2026-06-23 10:47:33 | INFO     | context_resolver     | [RESOLVER] Using LLM classification
+2026-06-23 10:47:33 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Classifying: what is t above
+2026-06-23 10:47:36 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Parsed response: dependent | factual
+2026-06-23 10:47:36 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Standalone query: What is the meaning of 't' as used in the derivation of drift velocity in the co
+2026-06-23 10:47:36 | INFO     | llm_classifier       | [LLM_CLASSIFIER] ✅ Classified as:
+2026-06-23 10:47:36 | INFO     | llm_classifier       |   - dependency_type: dependent
+2026-06-23 10:47:36 | INFO     | llm_classifier       |   - retrieval_intent: factual
+2026-06-23 10:47:36 | INFO     | llm_classifier       |   - answer_source: document
+2026-06-23 10:47:36 | INFO     | llm_classifier       |   - standalone_query: What is the meaning of 't' as used in the derivation of drift velocity in the context of electricity
+2026-06-23 10:47:36 | INFO     | llm_classifier       |   - reasoning: The query refers to 't' in 'the above', which is clearly referencing the previous drift velocity der
+2026-06-23 10:47:36 | INFO     | context_resolver     | [RESOLVER] LLM: dependent | factual | belongs=True | answer_source=document
+2026-06-23 10:47:36 | INFO     | context_resolver     | [RESOLVER] Final standalone query: What is the meaning of 't' as used in the derivation of drift velocity in the co
+2026-06-23 10:47:36 | INFO     | context_resolver     | [RESOLVER] DEPENDENT query BELONGS to active group group_f645c489
+2026-06-23 10:47:36 | INFO     | embedder             | [EMBED] Embedding query: 'What is the meaning of 't' as used in the derivation of drif...' 
+2026-06-23 10:47:37 | INFO     | embedder             | [EMBED] ✅ Query embedded — dim: 1536
+2026-06-23 10:47:37 | WARNING  | memory_store         | [MEMORY_STORE] No group summaries indexed yet
+2026-06-23 10:47:37 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Found 0 relevant groups
+2026-06-23 10:47:37 | INFO     | context_resolver     | [RESOLVER] Found 0 groups above threshold 0.6
+2026-06-23 10:47:37 | INFO     | context_resolver     | [RESOLVER] No other clearly-related groups to merge — active group only
+2026-06-23 10:47:37 | INFO     | context_resolver     | [RESOLVER] Found 0 relevant groups
+2026-06-23 10:47:37 | INFO     | context_resolver     | [RESOLVER] Using active group — no new group creation needed
+2026-06-23 10:47:37 | INFO     | context_resolver     | [RESOLVER] Summary not ready, using 1 recent turns for context
+2026-06-23 10:47:37 | INFO     | context_resolver     | [RESOLVER] Query pinned to file(s): ['electricity.pdf']
+2026-06-23 10:47:37 | INFO     | context_resolver     | [RESOLVER] ✅ Context resolution complete
+2026-06-23 10:47:37 | INFO     | app                  | [QUERY] Standalone query: What is the meaning of 't' as used in the derivation of drift velocity in the co
+2026-06-23 10:47:37 | INFO     | app                  | [QUERY] STEP 2 — Retrieving relevant chunks
+2026-06-23 10:47:37 | INFO     | retriever            | [RETRIEVER] Query: 'What is the meaning of 't' as used in the derivation of drif' | top_k: 5 | get_all_relevant: False | intent: factual | top_k_override: None | retrieve_all: False | restrict_filenames: ['electricity.pdf']
+2026-06-23 10:47:37 | INFO     | embedder             | [EMBED] ✅ Query embedding served from cache (no API call)
+2026-06-23 10:47:37 | INFO     | retriever            | [RETRIEVER] Intent 'factual' → mode=top_k | top_k=10 | chunk_threshold=0.2
+2026-06-23 10:47:37 | INFO     | vector_store         | [STORE] Searching top-877 — total vectors: 877 | filter={'filename': 'electricity.pdf'}
+2026-06-23 10:47:37 | INFO     | vector_store         | [STORE] ✅ 443 hits returned | top score: 0.8346
+2026-06-23 10:47:37 | INFO     | retriever            | [RETRIEVER] Total vectors fetched: 443
+2026-06-23 10:47:37 | INFO     | retriever            | [RETRIEVER] Doc score — electricity.pdf: 0.832
+2026-06-23 10:47:37 | INFO     | retriever            | [RETRIEVER] ✅ RELEVANT — electricity.pdf (score: 0.832)
+2026-06-23 10:47:37 | INFO     | retriever            | [RETRIEVER] TOP_K — electricity.pdf → 10 chunks (top 10, threshold 0.2)
+2026-06-23 10:47:37 | INFO     | retriever            | [RETRIEVER] Total returned: 10
+2026-06-23 10:47:37 | INFO     | app                  | [QUERY] Retrieved 10 chunks
+2026-06-23 10:47:37 | INFO     | generator            | [GENERATOR] Turns 1-5: Using full memory context (build understanding)
+2026-06-23 10:47:42 | INFO     | generator            | [GENERATOR] ✅ Streamed answer generated with memory summary
+2026-06-23 10:47:42 | INFO     | app                  | [QUERY] STEP 4 — Storing turn in conversation memory
+2026-06-23 10:47:42 | INFO     | memory_store         | [MEMORY_STORE] ✅ Updated group: group_f645c489
+2026-06-23 10:47:42 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Added turn turn_b63f0a06 to group group_f645c489
+2026-06-23 10:47:42 | INFO     | app                  | [QUERY] ✅ Turn saved to group group_f645c489
+2026-06-23 10:48:00 | INFO     | app                  | [QUERY/STREAM] ▶ 'no i mean the T used in vd formula' | override=None | retrieve_all=False
+2026-06-23 10:48:00 | INFO     | app                  | [QUERY] STEP 1 — Resolving query context
+2026-06-23 10:48:00 | INFO     | context_resolver     | [RESOLVER] Processing query: no i mean the T used in vd formula
+2026-06-23 10:48:00 | INFO     | context_resolver     | [RESOLVER] 🔍 Looking for active group: group_f645c489
+2026-06-23 10:48:00 | INFO     | context_resolver     | [RESOLVER] ✅ Active group found | turns: 2 | topic: Drift velocity derivation
+2026-06-23 10:48:00 | INFO     | context_resolver     | [RESOLVER]    Last turn query: what is t above | dependency: dependent
+2026-06-23 10:48:00 | INFO     | context_resolver     | [RESOLVER] Summary not ready (flag=False) — using 2 raw turn(s) of Q&A as classifier context
+2026-06-23 10:48:00 | INFO     | context_resolver     | [RESOLVER] Using LLM classification
+2026-06-23 10:48:00 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Classifying: no i mean the T used in vd formula
+2026-06-23 10:48:03 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Parsed response: dependent | factual
+2026-06-23 10:48:03 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Standalone query: What does the symbol 'T' represent in the drift velocity (vd) formula?
+2026-06-23 10:48:03 | INFO     | llm_classifier       | [LLM_CLASSIFIER] ✅ Classified as:
+2026-06-23 10:48:03 | INFO     | llm_classifier       |   - dependency_type: dependent
+2026-06-23 10:48:03 | INFO     | llm_classifier       |   - retrieval_intent: factual
+2026-06-23 10:48:03 | INFO     | llm_classifier       |   - answer_source: document
+2026-06-23 10:48:03 | INFO     | llm_classifier       |   - standalone_query: What does the symbol 'T' represent in the drift velocity (vd) formula?
+2026-06-23 10:48:03 | INFO     | llm_classifier       |   - reasoning: 'T' is referenced in the context of the drift velocity derivation, which is the active topic, and th
+2026-06-23 10:48:03 | INFO     | context_resolver     | [RESOLVER] LLM: dependent | factual | belongs=True | answer_source=document
+2026-06-23 10:48:03 | INFO     | context_resolver     | [RESOLVER] Final standalone query: What does the symbol 'T' represent in the drift velocity (vd) formula?
+2026-06-23 10:48:03 | INFO     | context_resolver     | [RESOLVER] DEPENDENT query BELONGS to active group group_f645c489
+2026-06-23 10:48:03 | INFO     | embedder             | [EMBED] Embedding query: 'What does the symbol 'T' represent in the drift velocity (vd...' 
+2026-06-23 10:48:04 | INFO     | embedder             | [EMBED] ✅ Query embedded — dim: 1536
+2026-06-23 10:48:04 | WARNING  | memory_store         | [MEMORY_STORE] No group summaries indexed yet
+2026-06-23 10:48:04 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Found 0 relevant groups
+2026-06-23 10:48:04 | INFO     | context_resolver     | [RESOLVER] Found 0 groups above threshold 0.6
+2026-06-23 10:48:04 | INFO     | context_resolver     | [RESOLVER] No other clearly-related groups to merge — active group only
+2026-06-23 10:48:04 | INFO     | context_resolver     | [RESOLVER] Found 0 relevant groups
+2026-06-23 10:48:04 | INFO     | context_resolver     | [RESOLVER] Using active group — no new group creation needed
+2026-06-23 10:48:04 | INFO     | context_resolver     | [RESOLVER] Summary not ready, using 2 recent turns for context
+2026-06-23 10:48:04 | INFO     | context_resolver     | [RESOLVER] Query pinned to file(s): ['electricity.pdf']
+2026-06-23 10:48:04 | INFO     | context_resolver     | [RESOLVER] ✅ Context resolution complete
+2026-06-23 10:48:04 | INFO     | app                  | [QUERY] Standalone query: What does the symbol 'T' represent in the drift velocity (vd) formula?
+2026-06-23 10:48:04 | INFO     | app                  | [QUERY] STEP 2 — Retrieving relevant chunks
+2026-06-23 10:48:04 | INFO     | retriever            | [RETRIEVER] Query: 'What does the symbol 'T' represent in the drift velocity (vd' | top_k: 5 | get_all_relevant: False | intent: factual | top_k_override: None | retrieve_all: False | restrict_filenames: ['electricity.pdf']
+2026-06-23 10:48:04 | INFO     | embedder             | [EMBED] ✅ Query embedding served from cache (no API call)
+2026-06-23 10:48:04 | INFO     | retriever            | [RETRIEVER] Intent 'factual' → mode=top_k | top_k=10 | chunk_threshold=0.2
+2026-06-23 10:48:04 | INFO     | vector_store         | [STORE] Searching top-877 — total vectors: 877 | filter={'filename': 'electricity.pdf'}
+2026-06-23 10:48:04 | INFO     | vector_store         | [STORE] ✅ 443 hits returned | top score: 0.8119
+2026-06-23 10:48:04 | INFO     | retriever            | [RETRIEVER] Total vectors fetched: 443
+2026-06-23 10:48:04 | INFO     | retriever            | [RETRIEVER] Doc score — electricity.pdf: 0.811
+2026-06-23 10:48:04 | INFO     | retriever            | [RETRIEVER] ✅ RELEVANT — electricity.pdf (score: 0.811)
+2026-06-23 10:48:04 | INFO     | retriever            | [RETRIEVER] TOP_K — electricity.pdf → 10 chunks (top 10, threshold 0.2)
+2026-06-23 10:48:04 | INFO     | retriever            | [RETRIEVER] Total returned: 10
+2026-06-23 10:48:04 | INFO     | app                  | [QUERY] Retrieved 10 chunks
+2026-06-23 10:48:04 | INFO     | generator            | [GENERATOR] Turns 1-5: Using full memory context (build understanding)
+2026-06-23 10:48:07 | INFO     | generator            | [GENERATOR] ✅ Streamed answer generated with memory summary
+2026-06-23 10:48:07 | INFO     | app                  | [QUERY] STEP 4 — Storing turn in conversation memory
+2026-06-23 10:48:07 | INFO     | memory_store         | [MEMORY_STORE] ✅ Updated group: group_f645c489
+2026-06-23 10:48:07 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Added turn turn_0d5d7fc7 to group group_f645c489
+2026-06-23 10:48:07 | INFO     | app                  | [QUERY] ✅ Turn saved to group group_f645c489
+2026-06-23 10:48:57 | INFO     | app                  | [QUERY/STREAM] ▶ 'list the table present in iso27 file' | override=None | retrieve_all=False
+2026-06-23 10:48:57 | INFO     | app                  | [QUERY] STEP 1 — Resolving query context
+2026-06-23 10:48:57 | INFO     | context_resolver     | [RESOLVER] Processing query: list the table present in iso27 file
+2026-06-23 10:48:57 | INFO     | context_resolver     | [RESOLVER] 🔍 Looking for active group: group_f645c489
+2026-06-23 10:48:57 | INFO     | context_resolver     | [RESOLVER] ✅ Active group found | turns: 3 | topic: Drift velocity derivation
+2026-06-23 10:48:57 | INFO     | context_resolver     | [RESOLVER]    Last turn query: no i mean the T used in vd formula | dependency: dependent
+2026-06-23 10:48:57 | INFO     | context_resolver     | [RESOLVER] Summary not ready (flag=False) — using 3 raw turn(s) of Q&A as classifier context
+2026-06-23 10:48:57 | INFO     | context_resolver     | [RESOLVER] Using LLM classification
+2026-06-23 10:48:57 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Classifying: list the table present in iso27 file
+2026-06-23 10:49:01 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Parsed response: independent | global_extraction
+2026-06-23 10:49:01 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Standalone query: List all tables present in iso27001.pdf.
+2026-06-23 10:49:01 | INFO     | llm_classifier       | [LLM_CLASSIFIER] ✅ Classified as:
+2026-06-23 10:49:01 | INFO     | llm_classifier       |   - dependency_type: independent
+2026-06-23 10:49:01 | INFO     | llm_classifier       |   - retrieval_intent: global_extraction
+2026-06-23 10:49:01 | INFO     | llm_classifier       |   - answer_source: document
+2026-06-23 10:49:01 | INFO     | llm_classifier       |   - standalone_query: List all tables present in iso27001.pdf.
+2026-06-23 10:49:01 | INFO     | llm_classifier       |   - reasoning: The query is self-contained, requests a complete list of tables from a specific document (iso27001.p
+2026-06-23 10:49:01 | INFO     | context_resolver     | [RESOLVER] LLM: independent | global_extraction | belongs=False | answer_source=document
+2026-06-23 10:49:01 | INFO     | context_resolver     | [RESOLVER] Final standalone query: List all tables present in iso27001.pdf.
+2026-06-23 10:49:01 | INFO     | context_resolver     | [RESOLVER] Will create new group: Tables in ISO 27001
+2026-06-23 10:49:01 | INFO     | embedder             | [EMBED] Embedding query: 'List all tables present in iso27001.pdf.'
+2026-06-23 10:49:02 | INFO     | embedder             | [EMBED] ✅ Query embedded — dim: 1536
+2026-06-23 10:49:02 | WARNING  | memory_store         | [MEMORY_STORE] No group summaries indexed yet
+2026-06-23 10:49:02 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Found 0 relevant groups
+2026-06-23 10:49:02 | INFO     | context_resolver     | [RESOLVER] Found 0 groups above threshold 0.3
+2026-06-23 10:49:02 | INFO     | context_resolver     | [RESOLVER] Found 0 relevant groups
+2026-06-23 10:49:02 | INFO     | context_resolver     | [RESOLVER] INDEPENDENT query — no strong existing-group match; creating NEW group
+2026-06-23 10:49:02 | INFO     | memory_store         | [MEMORY_STORE] ✅ Created group: group_8734e432
+2026-06-23 10:49:02 | INFO     | memory_manager       | [MEMORY_MGR] ✅ Created group group_8734e432: Tables in ISO 27001
+2026-06-23 10:49:02 | INFO     | context_resolver     | [RESOLVER] ✅ Created new topic group group_8734e432: Tables in ISO 27001
+2026-06-23 10:49:02 | INFO     | context_resolver     | [RESOLVER] Query pinned to file(s): ['iso27001.pdf']
+2026-06-23 10:49:02 | INFO     | context_resolver     | [RESOLVER] ✅ Context resolution complete
+2026-06-23 10:49:02 | INFO     | app                  | [QUERY] Standalone query: List all tables present in iso27001.pdf.
+2026-06-23 10:49:02 | INFO     | app                  | [QUERY] Intent 'global_extraction' — fetching ALL relevant chunks (not limited by top_k)
+2026-06-23 10:49:02 | INFO     | app                  | [QUERY] STEP 2 — Retrieving relevant chunks
+2026-06-23 10:49:02 | INFO     | retriever            | [RETRIEVER] Query: 'List all tables present in iso27001.pdf.' | top_k: 5 | get_all_relevant: True | intent: global_extraction | top_k_override: None | retrieve_all: False | restrict_filenames: ['iso27001.pdf']
+2026-06-23 10:49:02 | INFO     | embedder             | [EMBED] ✅ Query embedding served from cache (no API call)
+2026-06-23 10:49:02 | INFO     | retriever            | [RETRIEVER] Intent 'global_extraction' → mode=exhaustive | top_k=ALL | chunk_threshold=0.0
+2026-06-23 10:49:02 | INFO     | vector_store         | [STORE] Searching top-877 — total vectors: 877 | filter={'filename': 'iso27001.pdf'}
+2026-06-23 10:49:02 | INFO     | vector_store         | [STORE] ✅ 434 hits returned | top score: 0.8267
+2026-06-23 10:49:02 | INFO     | retriever            | [RETRIEVER] Total vectors fetched: 434
+2026-06-23 10:49:02 | INFO     | retriever            | [RETRIEVER] Doc score — iso27001.pdf: 0.825
+2026-06-23 10:49:02 | INFO     | retriever            | [RETRIEVER] ✅ RELEVANT — iso27001.pdf (score: 0.825)
+2026-06-23 10:49:02 | INFO     | retriever            | [RETRIEVER] EXHAUSTIVE — iso27001.pdf → 434 chunks (full-document scan, no threshold)
+2026-06-23 10:49:02 | INFO     | retriever            | [RETRIEVER] Total returned: 434
+2026-06-23 10:49:02 | INFO     | app                  | [QUERY] Retrieved 434 chunks
+2026-06-23 10:49:02 | INFO     | generator            | [GENERATOR] Map-reduce (global_extraction): 434 chunks → 44 parallel batches (size 10)
+2026-06-23 10:49:02 | INFO     | parallel_executor    | [PARALLEL] Executing 44 map-extract tasks in parallel with 6 workers
+2026-06-23 10:49:04 | INFO     | parallel_executor    | [PARALLEL] Completed 1/44 map-extract tasks
+2026-06-23 10:49:04 | INFO     | parallel_executor    | [PARALLEL] Completed 2/44 map-extract tasks
+2026-06-23 10:49:05 | INFO     | parallel_executor    | [PARALLEL] Completed 3/44 map-extract tasks
+2026-06-23 10:49:05 | INFO     | parallel_executor    | [PARALLEL] Completed 4/44 map-extract tasks
+2026-06-23 10:49:05 | INFO     | parallel_executor    | [PARALLEL] Completed 5/44 map-extract tasks
+2026-06-23 10:49:06 | INFO     | parallel_executor    | [PARALLEL] Completed 6/44 map-extract tasks
+2026-06-23 10:49:06 | INFO     | parallel_executor    | [PARALLEL] Completed 7/44 map-extract tasks
+2026-06-23 10:49:06 | INFO     | parallel_executor    | [PARALLEL] Completed 8/44 map-extract tasks
+2026-06-23 10:49:06 | INFO     | parallel_executor    | [PARALLEL] Completed 9/44 map-extract tasks
+2026-06-23 10:49:06 | INFO     | parallel_executor    | [PARALLEL] Completed 10/44 map-extract tasks
+2026-06-23 10:49:06 | INFO     | parallel_executor    | [PARALLEL] Completed 11/44 map-extract tasks
+2026-06-23 10:49:07 | INFO     | parallel_executor    | [PARALLEL] Completed 12/44 map-extract tasks
+2026-06-23 10:49:07 | INFO     | parallel_executor    | [PARALLEL] Completed 13/44 map-extract tasks
+2026-06-23 10:49:07 | INFO     | parallel_executor    | [PARALLEL] Completed 14/44 map-extract tasks
+2026-06-23 10:49:07 | INFO     | parallel_executor    | [PARALLEL] Completed 15/44 map-extract tasks
+2026-06-23 10:49:08 | INFO     | parallel_executor    | [PARALLEL] Completed 16/44 map-extract tasks
+2026-06-23 10:49:08 | INFO     | parallel_executor    | [PARALLEL] Completed 17/44 map-extract tasks
+2026-06-23 10:49:08 | INFO     | parallel_executor    | [PARALLEL] Completed 18/44 map-extract tasks
+2026-06-23 10:49:09 | INFO     | parallel_executor    | [PARALLEL] Completed 19/44 map-extract tasks
+2026-06-23 10:49:09 | INFO     | parallel_executor    | [PARALLEL] Completed 20/44 map-extract tasks
+2026-06-23 10:49:09 | INFO     | parallel_executor    | [PARALLEL] Completed 21/44 map-extract tasks
+2026-06-23 10:49:09 | INFO     | parallel_executor    | [PARALLEL] Completed 22/44 map-extract tasks
+2026-06-23 10:49:09 | INFO     | parallel_executor    | [PARALLEL] Completed 23/44 map-extract tasks
+2026-06-23 10:49:10 | INFO     | parallel_executor    | [PARALLEL] Completed 24/44 map-extract tasks
+2026-06-23 10:49:11 | INFO     | parallel_executor    | [PARALLEL] Completed 25/44 map-extract tasks
+2026-06-23 10:49:11 | INFO     | parallel_executor    | [PARALLEL] Completed 26/44 map-extract tasks
+2026-06-23 10:49:11 | INFO     | parallel_executor    | [PARALLEL] Completed 27/44 map-extract tasks
+2026-06-23 10:49:11 | INFO     | parallel_executor    | [PARALLEL] Completed 28/44 map-extract tasks
+2026-06-23 10:49:11 | INFO     | parallel_executor    | [PARALLEL] Completed 29/44 map-extract tasks
+2026-06-23 10:49:12 | INFO     | parallel_executor    | [PARALLEL] Completed 30/44 map-extract tasks
+2026-06-23 10:49:13 | INFO     | parallel_executor    | [PARALLEL] Completed 31/44 map-extract tasks
+2026-06-23 10:49:13 | INFO     | parallel_executor    | [PARALLEL] Completed 32/44 map-extract tasks
+2026-06-23 10:49:13 | INFO     | parallel_executor    | [PARALLEL] Completed 33/44 map-extract tasks
+2026-06-23 10:49:13 | INFO     | parallel_executor    | [PARALLEL] Completed 34/44 map-extract tasks
+2026-06-23 10:49:14 | INFO     | parallel_executor    | [PARALLEL] Completed 35/44 map-extract tasks
+2026-06-23 10:49:14 | INFO     | parallel_executor    | [PARALLEL] Completed 36/44 map-extract tasks
+2026-06-23 10:49:14 | INFO     | parallel_executor    | [PARALLEL] Completed 37/44 map-extract tasks
+2026-06-23 10:49:14 | INFO     | parallel_executor    | [PARALLEL] Completed 38/44 map-extract tasks
+2026-06-23 10:49:15 | INFO     | parallel_executor    | [PARALLEL] Completed 39/44 map-extract tasks
+2026-06-23 10:49:15 | INFO     | parallel_executor    | [PARALLEL] Completed 40/44 map-extract tasks
+2026-06-23 10:49:15 | INFO     | parallel_executor    | [PARALLEL] Completed 41/44 map-extract tasks
+2026-06-23 10:49:16 | INFO     | parallel_executor    | [PARALLEL] Completed 42/44 map-extract tasks
+2026-06-23 10:49:17 | INFO     | parallel_executor    | [PARALLEL] Completed 43/44 map-extract tasks
+2026-06-23 10:49:17 | INFO     | parallel_executor    | [PARALLEL] Completed 44/44 map-extract tasks
+2026-06-23 10:49:17 | INFO     | parallel_executor    | [PARALLEL] ✅ All 44 map-extract tasks completed
+2026-06-23 10:49:17 | INFO     | generator            | [GENERATOR] Stream map-reduce: 44 batches returned content — streaming reduce
+2026-06-23 10:50:10 | INFO     | vector_store         | [STORE] Collection cleared.

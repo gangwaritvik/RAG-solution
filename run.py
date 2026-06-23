@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 PDFRAG - Unified Entry Point
-Starts both backend (port 8000) and frontend (port 3000) servers
+Starts both backend (port 8080) and frontend (port 3030) servers
 
 Usage:
     python run.py              # Always clears vector store & memory on startup
@@ -31,9 +31,9 @@ STORAGE_PATH = PROJECT_ROOT / "PDFRAG-main" / "backend" / "storage"
 CHROMA_PATH = STORAGE_PATH / "chroma_db"
 
 def run_backend():
-    """Start backend API server on port 8000 (FastAPI + uvicorn)."""
+    """Start backend API server on port 8080 (FastAPI + uvicorn)."""
     print("\n" + "="*60)
-    print("🚀 Starting BACKEND (FastAPI/uvicorn, port 8000)...")
+    print("🚀 Starting BACKEND (FastAPI/uvicorn, port 8080)...")
     print("="*60 + "\n")
 
     os.chdir(str(PROJECT_ROOT / "PDFRAG-main"))
@@ -47,15 +47,15 @@ def run_backend():
     ])
 
 def run_frontend():
-    """Start frontend HTTP server on port 3000"""
+    """Start frontend HTTP server on port 3030"""
     print("\n" + "="*60)
-    print("🚀 Starting FRONTEND (port 3000)...")
+    print("🚀 Starting FRONTEND (port 3030)...")
     print("="*60 + "\n")
     
     os.chdir(str(FRONTEND_PATH))
-    subprocess.run([sys.executable, "-m", "http.server", "3000"])
+    subprocess.run([sys.executable, "-m", "http.server", "3030"])
 
-def wait_for_backend(host="localhost", port=8000, timeout=90):
+def wait_for_backend(host="localhost", port=8080, timeout=90):
     """Block until the backend accepts TCP connections, or until ``timeout`` seconds.
 
     uvicorn binds the port only AFTER it imports the app, which runs all the heavy
@@ -110,7 +110,7 @@ def main():
     # Parse command-line arguments
     # Always run with fresh data as requested.
     # Keep --fresh accepted for backward compatibility.
-    fresh_start = True
+    fresh_start = False
     backend_only = "--backend" in sys.argv
     frontend_only = "--frontend" in sys.argv
     
@@ -154,7 +154,7 @@ def main():
             backend_thread.start()
             
             # Wait until the backend is actually ready before starting the frontend.
-            # uvicorn binds port 8000 only AFTER importing the app (which initializes every
+            # uvicorn binds port 8080 only AFTER importing the app (which initializes every
             # pipeline singleton), so a successful connection means "fully loaded". This
             # replaces a blind fixed sleep, so the frontend/browser never come up while the
             # backend is still initializing.
@@ -171,7 +171,7 @@ def main():
             print("✅ Both servers running!")
             print("="*60)
             print("📄 Backend:  http://localhost:8000")
-            print("🌐 Frontend: http://localhost:3000")
+            print("🌐 Frontend: http://localhost:3030")
             print("\n⏹️  Press Ctrl+C to stop both servers")
             print("📝 Startup mode: always fresh (storage cleared on launch)\n")
             

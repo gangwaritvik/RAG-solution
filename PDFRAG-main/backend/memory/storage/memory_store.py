@@ -319,35 +319,3 @@ class MemoryStore:
                 exc_info=True
             )
             return False
-    
-    def clear_all(self) -> bool:
-        """
-        Clear all memory storage (for testing/reset).
-        
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            self.client.delete_collection(self.METADATA_COLLECTION)
-            self.client.delete_collection(self.SUMMARY_COLLECTION)
-            
-            # Recreate empty collections
-            self.metadata_collection = self.client.get_or_create_collection(
-                name=self.METADATA_COLLECTION,
-                metadata={"hnsw:space": "cosine"},
-            )
-            self.summary_collection = self.client.get_or_create_collection(
-                name=self.SUMMARY_COLLECTION,
-                metadata={"hnsw:space": "cosine"},
-            )
-            
-            log.info("[MEMORY_STORE] ✅ All memory cleared")
-            return True
-            
-        except Exception as e:
-            log.error(
-                f"[MEMORY_STORE] ❌ Failed to clear memory — "
-                f"{type(e).__name__}: {e}",
-                exc_info=True
-            )
-            return False

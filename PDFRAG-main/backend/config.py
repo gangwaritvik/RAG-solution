@@ -18,4 +18,6 @@ UPLOAD_DIR   = os.path.join(BASE_DIR, "storage", "uploads")
 CHROMA_DIR   = os.path.join(BASE_DIR, "storage", "chroma_db")  
 FRONTEND_DIR = os.path.join(BASE_DIR, "..", "frontend")  
 DOC_RELEVANCE_THRESHOLD   = float(os.getenv("DOC_RELEVANCE_THRESHOLD", 0.25))  
-CHUNK_RELEVANCE_THRESHOLD = float(os.getenv("CHUNK_RELEVANCE_THRESHOLD", 0.20))  
+CHUNK_RELEVANCE_THRESHOLD = float(os.getenv("CHUNK_RELEVANCE_THRESHOLD", 0.20))
+
+  

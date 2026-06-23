@@ -29,6 +29,10 @@ INTENT_RETRIEVAL_CONFIG = {
     "targeted_extraction": {"mode": "comprehensive", "top_k": 30,   "threshold": 0.05},
     # Global extraction — list/enumerate ALL matching items across the document
     "global_extraction":   {"mode": "exhaustive",    "top_k": None, "threshold": 0.0},
+    # Positional/ordinal — "the last two", "the 5th item". Needs the WHOLE document in
+    # natural order so position can be resolved; exhaustive mode returns every chunk and
+    # the retriever emits them in document order (page, then chunk_index).
+    "positional":          {"mode": "exhaustive",    "top_k": None, "threshold": 0.0},
     # Reasoning over the topic — same breadth as summary
     "analysis":   {"mode": "comprehensive", "top_k": 30,   "threshold": 0.10},
     # Comparing items — broad coverage of both sides, but capped
@@ -94,7 +98,13 @@ class Retriever:
         # ── Resolve per-intent retrieval config ──
         cfg = INTENT_RETRIEVAL_CONFIG.get(retrieval_intent, DEFAULT_INTENT_CONFIG)
         mode            = cfg["mode"]
-        intent_top_k    = cfg["top_k"] if cfg["top_k"] is not None else top_k
+        # When the intent declares no cap (top_k is None — e.g. the exhaustive global
+        # intents), it is UNBOUNDED: every qualifying chunk is kept. Only fall back to
+        # the caller's default ``top_k`` for capped modes; never let it silently shrink
+        # an unbounded intent (that would make the log read like a small cap was applied
+        # when the whole document is actually returned).
+        is_unbounded    = cfg["top_k"] is None
+        intent_top_k    = top_k if is_unbounded else cfg["top_k"]
         chunk_threshold = cfg["threshold"]
 
         # ── User override: when the frontend explicitly sets Top-K, it WINS over the
@@ -102,13 +112,15 @@ class Retriever:
         # downgraded to a capped comprehensive pass so the user's K is respected. ──
         if top_k_override is not None and top_k_override > 0:
             intent_top_k = top_k_override
+            is_unbounded = False
             if mode == "exhaustive":
                 mode = "comprehensive"
             log.info(f"[RETRIEVER] Top-K OVERRIDE active → using user top_k={intent_top_k} (mode now '{mode}')")
 
+        top_k_display = "ALL" if (is_unbounded and mode == "exhaustive") else intent_top_k
         log.info(
             f"[RETRIEVER] Intent '{retrieval_intent}' → mode={mode} | "
-            f"top_k={intent_top_k} | chunk_threshold={chunk_threshold}"
+            f"top_k={top_k_display} | chunk_threshold={chunk_threshold}"
         )
         # ── Step 1: Fetch ALL vectors ──  
         all_hits = self.vector_store.search(query_vector, top_k=total, where=where_filter)  
@@ -137,7 +149,7 @@ class Retriever:
         for fname, score in doc_scores.items():  
             is_relevant = (  
                 score >= DOC_RELEVANCE_THRESHOLD           # absolute threshold  
-                or score >= max_score * 0.60               # relative: within 60% of best doc  
+                or score >= max_score * 0.75               # relative: within 75% of best doc; tighter than 0.60  
             )  
             if is_relevant:  
                 relevant_docs[fname] = per_doc[fname]  
@@ -159,12 +171,19 @@ class Retriever:
         diverse = []
         for fname, hits in relevant_docs.items():
             if mode == "exhaustive":
-                # EXHAUSTIVE MODE: enumeration queries ("list all X") must scan the
-                # ENTIRE document. Threshold filtering would drop chunks that mention
-                # an item only in passing, making the list incomplete. So return ALL
-                # chunks from the relevant document, ordered by similarity.
-                final = hits
-                log.info(f"[RETRIEVER] EXHAUSTIVE — {fname} → {len(final)} chunks (full-document scan, no threshold)")
+                # EXHAUSTIVE MODE: enumeration queries ("list all X") and POSITIONAL
+                # queries ("the last two", "the 5th item", "the one after X") must scan
+                # the ENTIRE document. Threshold filtering would drop chunks that mention
+                # an item only in passing, making the list incomplete. Return ALL chunks —
+                # but ordered by their NATURAL POSITION in the document (page, then
+                # chunk_index), NOT by similarity. Document order is what lets the model
+                # resolve "first"/"last"/"Nth"; similarity order scrambles the sequence and
+                # makes positional references impossible to answer.
+                final = sorted(
+                    hits,
+                    key=lambda h: (int(h.get("page") or 0), int(h.get("chunk_index") or 0)),
+                )
+                log.info(f"[RETRIEVER] EXHAUSTIVE — {fname} → {len(final)} chunks (full-document scan, document order, no threshold)")
             elif mode == "comprehensive":
                 # COMPREHENSIVE MODE: Get chunks above the intent's threshold, ordered by
                 # similarity, then cap to the intent's top_k so we don't send an oversized

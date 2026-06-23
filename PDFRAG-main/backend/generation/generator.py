@@ -16,18 +16,26 @@ MAP_REDUCE_INTENTS = {
     "targeted_summary",
     "global_summary",
     "analysis",
+    # NOTE: "positional" is intentionally EXCLUDED. Positional/ordinal queries ("the last
+    # two", "the 5th item") need the WHOLE ordered document in ONE call to resolve
+    # position. Map-reduce splits the document into independent batches, and a batch
+    # worker cannot tell whether its local slice holds the "first"/"last"/"Nth" item —
+    # so positional falls through to the single-call path, which sees the full sequence.
 }
 
 MAP_REDUCE_BATCH_SIZE = 10   # chunks per parallel map call
 MAP_REDUCE_MIN_CHUNKS = 12   # only parallelize when chunk count exceeds this
-# Run ALL map batches concurrently (one worker per batch) up to this ceiling.
-# The ceiling protects against Azure's request rate limit (250 req/min) and
-# thread explosion on pathological chunk counts.
-MAP_REDUCE_MAX_WORKERS = 30
+# Map batches run concurrently, but in MODERATE waves rather than all at once. Bursting
+# many simultaneous GPT requests at one Azure deployment blows its per-minute token
+# burst, so the deployment throttles/queues the excess — the queued calls then exceed
+# the per-call timeout and FAIL, silently dropping those chunks from the answer. A
+# smaller ceiling sends batches in waves that each clear quickly, which is both more
+# RELIABLE (far fewer timeouts) and usually no slower overall (no throttle backoff).
+MAP_REDUCE_MAX_WORKERS = 6
 
 # Per-request timeouts (seconds) so a single hung HTTP call can't stall a query.
 LLM_REQUEST_TIMEOUT = 60      # default for normal single-call generation
-MAP_BATCH_TIMEOUT = 30        # tighter per-batch timeout in the parallel map step
+MAP_BATCH_TIMEOUT = 60        # per-batch timeout in the parallel map step (room for queued waves)
 LLM_MAX_RETRIES = 2           # SDK-level retries on transient failures/timeouts
 
 
@@ -114,10 +122,14 @@ class Generator:
 
         # Add retrieved document chunks
         context_sections.append("## Document Context:")
-        context_sections.append("\n\n".join([
-            f"[Source: {c['filename']} | Page: {c['page']} | Chunk: {c['chunk_index']}]\n{c['text']}"
-            for c in context_chunks
-        ]))
+        if context_chunks:
+            context_sections.append("\n\n".join([
+                f"[Source: {c['filename']} | Page: {c['page']} | Chunk: {c['chunk_index']}]\n{c['text']}"
+                for c in context_chunks
+            ]))
+        else:
+            # No chunks retrieved - still provide info that a document exists
+            context_sections.append("(Content retrieval incomplete; synthesize from document knowledge)")
 
         full_context = "\n\n".join(context_sections)
         system_prompt = self._get_system_prompt(retrieval_intent)
@@ -186,6 +198,28 @@ class Generator:
             max_workers=map_workers,
             operation_name="map-extract",
         )
+
+        # COMPLETENESS SAFETY NET: a batch that ERRORED (e.g. timed out under throttling)
+        # contributed NONE of its chunks to the answer. Don't silently drop them — retry
+        # just the failed batches once, sequentially (max_workers=1) so the retry itself
+        # can't re-trigger the throttling that caused the failure.
+        failed_idx = [i for i, r in enumerate(map_results) if not r or r.get("error")]
+        if failed_idx:
+            log.warning(
+                f"[GENERATOR] Map-reduce: {len(failed_idx)} batch(es) failed on first pass "
+                f"— retrying them sequentially so no chunks are dropped"
+            )
+            retry_results = ParallelExecutor.execute_parallel(
+                tasks=[tasks[i] for i in failed_idx],
+                task_func=self._map_batch,
+                max_workers=1,
+                operation_name="map-extract-retry",
+            )
+            for slot, res in zip(failed_idx, retry_results):
+                map_results[slot] = res
+            still_failed = sum(1 for i in failed_idx if not map_results[i] or map_results[i].get("error"))
+            if still_failed:
+                log.error(f"[GENERATOR] Map-reduce: {still_failed} batch(es) STILL failed after retry — their chunks are missing from the answer")
 
         partials = []
         for r in map_results:

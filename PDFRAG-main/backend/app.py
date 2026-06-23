@@ -11,7 +11,7 @@ behaviour of every endpoint matches the original. The only additions are:
     via Server-Sent Events (SSE).
   * Native async serving via uvicorn (ThreadingHTTPServer is no longer needed).
 
-Run with:  uvicorn backend.app:app --host localhost --port 8000
+Run with:  uvicorn backend.app:app --host localhost --port 8080
 """
 import os
 import sys
@@ -235,7 +235,7 @@ def _resolve_and_retrieve(query: str, top_k: int, group_id, top_k_override, retr
     broad = intent in [
         "targeted_summary", "global_summary",
         "targeted_extraction", "global_extraction",
-        "comparison", "analysis",
+        "positional", "comparison", "analysis",
     ]
 
     get_all_relevant = False
@@ -359,8 +359,13 @@ def _resolve_query(query: str, top_k: int, temp: float, group_id, top_k_override
             turn_count=ctx["turn_count"],
         )
     else:
+        # Generate against the RESOLVED standalone query (typos corrected, references
+        # like "the above" rewritten), NOT the raw user text — otherwise the model sees
+        # gibberish (e.g. a typo'd "what is T aobve") and says the context has nothing,
+        # even though retrieval used the resolved query and fetched the right chunks.
+        gen_query = getattr(query_context, "standalone_query", None) or query
         answer, memory_summary = core.generator.generate(
-            query=query,
+            query=gen_query,
             context_chunks=ctx["hits"],
             temperature=temp,
             memory_context=ctx["memory_context"],
@@ -393,6 +398,15 @@ def _store_turn(query_context, query, memory_summary, answer):
             restrict_filenames=query_context.restrict_filenames,
         )
         log.info(f"[QUERY] ✅ Turn saved to group {query_context.active_group_id}")
+        # Auto roll-up: once a group reaches the threshold (5) UNSUMMARIZED turns, kick
+        # off summarization in the BACKGROUND (non-blocking) so it never delays the user's
+        # response. While that summary is being generated (or before it exists), the group's
+        # summary_ready flag stays False, so the resolver keeps using the group's RAW turn
+        # Q&A as context — a query arriving mid-summarization is fully race-safe.
+        try:
+            core.bg_summarizer.summarize_if_needed(query_context.active_group_id, threshold=5)
+        except Exception as e:  # noqa: BLE001
+            log.warning(f"[QUERY] ⚠️ Could not trigger background summarization: {e}")
     else:
         log.warning("[QUERY] ⚠️ No active group — turn not saved to memory")
 
@@ -508,8 +522,13 @@ async def query_stream(request: Request):
                             turn_count=ctx["turn_count"],
                         )
                     else:
+                        # Use the RESOLVED standalone query (typos fixed, references
+                        # rewritten) for generation too — matching what retrieval used.
+                        # Passing the raw user text makes the model answer the literal
+                        # typo'd string and wrongly report the context as empty.
+                        gen_query = getattr(query_context, "standalone_query", None) or query_text
                         gen_iter = core.generator.generate_stream(
-                            query=query_text,
+                            query=gen_query,
                             context_chunks=hits,
                             temperature=temp,
                             memory_context=ctx["memory_context"],

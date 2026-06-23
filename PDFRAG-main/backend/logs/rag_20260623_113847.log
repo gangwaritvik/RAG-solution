@@ -1,0 +1,34 @@
+2026-06-23 11:38:47 | INFO     | retriever            | [RETRIEVER] Query: 'the last two courses' | top_k: 5 | get_all_relevant: False | intent: positional | top_k_override: None | retrieve_all: False | restrict_filenames: None
+2026-06-23 11:38:47 | INFO     | retriever            | [RETRIEVER] Intent 'positional' → mode=exhaustive | top_k=ALL | chunk_threshold=0.0
+2026-06-23 11:38:47 | INFO     | retriever            | [RETRIEVER] Total vectors fetched: 4
+2026-06-23 11:38:47 | INFO     | retriever            | [RETRIEVER] Doc score — courses.pdf: 0.835
+2026-06-23 11:38:47 | INFO     | retriever            | [RETRIEVER] ✅ RELEVANT — courses.pdf (score: 0.835)
+2026-06-23 11:38:47 | INFO     | retriever            | [RETRIEVER] EXHAUSTIVE — courses.pdf → 4 chunks (full-document scan, document order, no threshold)
+2026-06-23 11:38:47 | INFO     | retriever            | [RETRIEVER] Total returned: 4
+2026-06-23 11:38:48 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Classifying: give the syllabus of the last two courses
+2026-06-23 11:38:52 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Parsed response: independent | positional
+2026-06-23 11:38:52 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Standalone query: Provide the syllabus of the last two courses listed in courses.pdf.
+2026-06-23 11:38:52 | INFO     | llm_classifier       | [LLM_CLASSIFIER] ✅ Classified as:
+2026-06-23 11:38:52 | INFO     | llm_classifier       |   - dependency_type: independent
+2026-06-23 11:38:52 | INFO     | llm_classifier       |   - retrieval_intent: positional
+2026-06-23 11:38:52 | INFO     | llm_classifier       |   - answer_source: document
+2026-06-23 11:38:52 | INFO     | llm_classifier       |   - standalone_query: Provide the syllabus of the last two courses listed in courses.pdf.
+2026-06-23 11:38:52 | INFO     | llm_classifier       |   - reasoning: The query is self-contained, refers to the order of courses in courses.pdf, and requires extracting 
+2026-06-23 11:38:52 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Classifying: what is the 5th course
+2026-06-23 11:38:55 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Parsed response: independent | positional
+2026-06-23 11:38:55 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Standalone query: What is the 5th course listed in courses.pdf?
+2026-06-23 11:38:55 | INFO     | llm_classifier       | [LLM_CLASSIFIER] ✅ Classified as:
+2026-06-23 11:38:55 | INFO     | llm_classifier       |   - dependency_type: independent
+2026-06-23 11:38:55 | INFO     | llm_classifier       |   - retrieval_intent: positional
+2026-06-23 11:38:55 | INFO     | llm_classifier       |   - answer_source: document
+2026-06-23 11:38:55 | INFO     | llm_classifier       |   - standalone_query: What is the 5th course listed in courses.pdf?
+2026-06-23 11:38:55 | INFO     | llm_classifier       |   - reasoning: The query asks for the 5th course by its position in the list, which requires reading the ordered li
+2026-06-23 11:38:55 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Classifying: list all courses
+2026-06-23 11:38:57 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Parsed response: independent | global_extraction
+2026-06-23 11:38:57 | INFO     | llm_classifier       | [LLM_CLASSIFIER] Standalone query: List all courses included in the document.
+2026-06-23 11:38:57 | INFO     | llm_classifier       | [LLM_CLASSIFIER] ✅ Classified as:
+2026-06-23 11:38:57 | INFO     | llm_classifier       |   - dependency_type: independent
+2026-06-23 11:38:57 | INFO     | llm_classifier       |   - retrieval_intent: global_extraction
+2026-06-23 11:38:57 | INFO     | llm_classifier       |   - answer_source: document
+2026-06-23 11:38:57 | INFO     | llm_classifier       |   - standalone_query: List all courses included in the document.
+2026-06-23 11:38:57 | INFO     | llm_classifier       |   - reasoning: The query is self-contained, requests a complete enumeration of all courses (a global extraction), a

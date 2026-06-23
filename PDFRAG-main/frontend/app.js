@@ -18,10 +18,10 @@ function setText(id, val) {
 }
 
 var CHUNK_DESCRIPTIONS = {
-    recursive: 'Splits by character count with smart separator fallback � fast &amp; reliable.',
-    semantic:  'Splits by meaning using embeddings � preserves topic context. Slower, uses embedding API.',
-    sliding:   'Overlapping windows of fixed size � ensures no context is lost at chunk boundaries.',
-    fixed:     'Hard splits at exact character count � simple, predictable, no overlap.'
+    recursive: 'Splits by character count with smart separator fallback - fast and reliable.',
+    semantic:  'Splits by meaning using embeddings - preserves topic context. Slower, uses embedding API.',
+    sliding:   'Overlapping windows of fixed size - ensures no context is lost at chunk boundaries.',
+    fixed:     'Hard splits at exact character count - simple, predictable, no overlap.'
 };
 
 function updateChunkMode() {
@@ -29,7 +29,7 @@ function updateChunkMode() {
     var desc   = document.getElementById('chunkModeDesc');
     var mode   = select.value;
     if (desc) desc.innerHTML = CHUNK_DESCRIPTIONS[mode] || '';
-    toast(mode === 'semantic' ? '?? Semantic chunking selected' : '? ' + mode + ' chunking selected', 'info');
+    toast(mode === 'semantic' ? 'Semantic chunking selected' : mode + ' chunking selected', 'info');
 }
 
 function getChunkMode() {
@@ -89,8 +89,8 @@ function syncTopKControlsState() {
 
     if (hint) {
         hint.textContent = topKEnabled
-            ? 'Manual � ' + current + ' chunks per query (max ' + effectiveMax + ').'
-            : 'Auto � using per-intent defaults. Toggle to set manually (max ' + effectiveMax + ').';
+            ? 'Manual: ' + current + ' chunks per query (max ' + effectiveMax + ').'
+            : 'Auto: using per-intent defaults. Toggle to set manually (max ' + effectiveMax + ').';
     }
 }
 
@@ -111,15 +111,15 @@ function toggleTopKEnabled(enabled, silent) {
     if (silent) return;
     var slider = document.getElementById('topK');
     toast(topKEnabled
-        ? 'Manual Top-K enabled � using ' + (slider ? slider.value : '5')
-        : 'Manual Top-K off � using automatic per-intent defaults', 'info');
+        ? 'Manual Top-K enabled: using ' + (slider ? slider.value : '5')
+        : 'Manual Top-K off: using automatic per-intent defaults', 'info');
 }
 
 function updateTopK(val) {
     var display = document.getElementById('topKDisplay');
     if (display) display.textContent = val;
     var hint = document.getElementById('topKHint');
-    if (topKEnabled && hint) hint.textContent = 'Manual � ' + val + ' chunks per query (max ' + getEffectiveTopKMax() + ').';
+    if (topKEnabled && hint) hint.textContent = 'Manual: ' + val + ' chunks per query (max ' + getEffectiveTopKMax() + ').';
 }
 
 function updateTemp(val) {
@@ -245,66 +245,67 @@ function renderFiles() {
     if (!list) return;
 
     if (noMsg) noMsg.style.display = state.files.length ? 'none' : 'block';  
-    var ex = list.querySelectorAll('.file-item');  
+    var ex = list.querySelectorAll('.file-row');  
     for (var i = 0; i < ex.length; i = i + 1) { ex[i].remove(); }
 
     for (var i = 0; i < state.files.length; i = i + 1) {  
         var f   = state.files[i];  
-        var div = document.createElement('div');  
-        div.className = 'file-item';  
-        div.id = 'fi-' + f.id;  
-        div.style.animationDelay = (i * 0.05) + 's';
+        var row = document.createElement('div');
+        row.className = 'file-row file-row--' + f.status;
+        row.id = 'fr-' + f.id;
+        row.style.animationDelay = (i * 0.05) + 's';
 
         var methodBadge = f.chunkMode  
             ? '<span class="chunk-method-badge chunk-badge-' + f.chunkMode + '">' + f.chunkMode.toUpperCase() + '</span>'  
             : '';
 
         var rechunkBtn = f.status === 'done'  
-            ? '<button class="file-rechunk-btn" title="Re-chunk" onclick="rechunkFile(\'' + f.id + '\', \'' + esc(f.name) + '\', event)">&#x1F504;</button>'  
+            ? '<button class="file-rechunk-btn file-action-btn file-action-rechunk" title="Re-chunk with different method" onclick="rechunkFile(\'' + f.id + '\', \'' + esc(f.name) + '\', event)">'
+            + '<svg class="icon-btn" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+            + '<path d="M15.55 5.55L11 1v3.07C7.15 4.56 4.85 7.35 4.85 10.5c0 .5.45.95.95.95s.95-.45.95-.95c0-2.5 1.81-4.63 4.19-5.15V11l4.55-4.45zM19.4 15.95c-.5 0-.95.45-.95.95 0 2.5-1.81 4.63-4.19 5.15V13l-4.55 4.45 4.55 4.45v-3.07c3.85-.86 6.15-3.65 6.15-6.8 0-.5-.45-.95-.95-.95z"></path>'
+            + '</svg>'
+            + 'Rechunk</button>'  
             : '';
 
-        var deleteBtn = '<button class="file-delete-btn" title="Delete" onclick="deleteFile(\'' + f.id + '\', \'' + esc(f.name) + '\', event)">&#x1F5D1;</button>';
+        var viewChunksBtn = f.chunks.length > 0  
+            ? '<button class="file-rechunk-btn file-action-btn file-action-view" title="View all chunks" onclick="openChunksWindow(\'' + f.id + '\', \'' + esc(f.name) + '\', event)">'
+            + '<svg class="icon-btn" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+            + '<path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"></path>'
+            + '</svg>'
+            + 'Chunks</button>'  
+            : '';
+
+        var deleteBtn = f.status !== 'processing'  
+            ? '<button class="file-delete-btn file-action-btn file-action-delete" title="Delete file" aria-label="Delete file" onclick="deleteFile(\'' + f.id + '\', \'' + esc(f.name) + '\', event)">'
+            + '<svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+            + '<path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 7h2v8h-2v-8zm4 0h2v8h-2v-8zM7 10h2v8H7v-8z"></path>'
+            + '</svg>'
+            + 'Delete'
+            + '</button>'
+            : '';
 
         var progressBar = f.status === 'processing'  
             ? '<div class="progress-wrap"><div class="progress-fill" id="pb-' + f.id + '" style="width:0%"></div></div>'  
             : '';
 
-        var chunkToggle = '';  
-        if (f.chunks.length > 0) {  
-            var chunksHTML = '';  
-            for (var k = 0; k < f.chunks.length; k = k + 1) {  
-                var c       = f.chunks[k];  
-                var pageNum = (c.page != null && c.page !== '?') ? c.page : '?';  
-                chunksHTML = chunksHTML  
-                                        + '<div class="chunk-card" onclick="openChunkModal(\''  
-                                        + esc(f.name) + '\', ' + (k + 1) + ', ' + pageNum  
-                                        + ', \'' + esc(c.text || '') + '\', \''  
-                                        + (f.chunkMode || 'recursive') + '\')">'  
-                                        + '<div class="chunk-label">Chunk ' + (k + 1) + ' · Page ' + pageNum + '</div>'  
-                                        + '<div class="chunk-text">' + esc(c.text || '') + '</div>'  
-                                        + '</div>';  
-            }  
-            chunkToggle = '<div class="chunk-toggle" onclick="toggleChunks(\'' + f.id + '\')">'  
-                                + '<span id="arr-' + f.id + '">&#9658;</span> Chunks (' + f.chunks.length + ')'  
-                                + '</div>'  
-                                + '<div class="chunk-list" id="cl-' + f.id + '">' + chunksHTML + '</div>';  
-        }
+        row.innerHTML = '<div class="file-item" id="fi-' + f.id + '">'  
+            + '<div class="file-head">'  
+            + '<div class="file-main">'
+            + '<span class="file-icon">&#128196;</span>'  
+            + '<div class="file-info">'  
+            + '<div class="file-name-row">'
+            + '<div class="file-name" title="' + esc(f.name) + '">' + esc(f.name) + '</div>'  
+            + '<span class="file-size-inline">(' + f.size + ')</span>'
+            + '</div>'
+            + '</div>'  
+            + '</div>'
+            + '<div class="file-bottom-meta">' + methodBadge + '<span class="file-badge badge-' + f.status + '">' + f.status.toUpperCase() + '</span></div>'
+            + '</div>'  
+            + progressBar
+            + '</div>'
+            + '<div class="file-actions">' + viewChunksBtn + rechunkBtn + deleteBtn + '</div>';
 
-        div.innerHTML = '<div class="file-head">'  
-                        + '<span class="file-icon">&#128196;</span>'  
-                        + '<div class="file-info">'  
-                        + '<div class="file-name" title="' + esc(f.name) + '">' + esc(f.name) + '</div>'  
-                        + '<div class="file-meta">' + methodBadge + '</div>'  
-                        + '<span class="file-size-text">' + f.size + '</span>'  
-                        + '</div>'  
-                        + '<span class="file-badge badge-' + f.status + '">' + f.status.toUpperCase() + '</span>'  
-                        + rechunkBtn  
-                        + deleteBtn  
-                        + '</div>'  
-                        + progressBar  
-                        + chunkToggle;
-
-        list.appendChild(div);  
+        list.appendChild(row);
     }
 
     setText('fileCount', state.files.length);  
@@ -313,16 +314,6 @@ function renderFiles() {
     setText('sQueries',  state.queryCount);  
     syncTopKControlsState();
 }
-
-function toggleChunks(id) {  
-    var cl  = document.getElementById('cl-' + id);  
-    var arr = document.getElementById('arr-' + id);  
-    if (!cl) return;  
-    var open = cl.classList.toggle('open');  
-    if (arr) arr.innerHTML = open ? '&#9660;' : '&#9658;';  
-}
-
-
 
 function toggleQuerySettings(){    
     qsExpanded = !qsExpanded;  
@@ -355,8 +346,84 @@ function closeChunkModal() {
     document.body.style.overflow = '';  
 }
 
+function openChunksWindow(fileId, filename, event) {
+    event.stopPropagation();
+    var file = null;
+    for (var i = 0; i < state.files.length; i = i + 1) {
+        if (String(state.files[i].id) === String(fileId)) { file = state.files[i]; break; }
+    }
+    if (!file || !file.chunks) { toast('File not found', 'error'); return; }
+
+    var modal = document.getElementById('chunksWindowModal');
+    var titleEl = document.getElementById('chunksWindowTitle');
+    var bodyEl = document.getElementById('chunksWindowBody');
+    var searchEl = document.getElementById('chunksSearchInput');
+    
+    if (!modal) return;
+    
+    titleEl.textContent = 'All Chunks · ' + esc(filename);
+    searchEl.value = '';
+    
+    // Store current file for filtering
+    window.currentChunksFile = file;
+    
+    var chunksHTML = '';
+    for (var k = 0; k < file.chunks.length; k = k + 1) {
+        var c = file.chunks[k];
+        var pageNum = (c.page != null && c.page !== '?') ? c.page : '?';
+        chunksHTML += '<div class="chunk-window-card" data-chunk-index="' + k + '" data-chunk-text="' + esc(c.text || '').toLowerCase() + '">'
+            + '<div class="chunk-window-header">'
+            + '<div class="chunk-window-label">Chunk ' + (k + 1) + '</div>'
+            + '<div class="chunk-window-meta">Page ' + pageNum + ' • ' + (file.chunkMode || 'recursive').toUpperCase() + '</div>'
+            + '</div>'
+            + '<div class="chunk-window-text">' + esc(c.text || '') + '</div>'
+            + '<button class="chunk-window-copy" onclick="copyChunkToClipboard(\'' + esc(c.text || '').replace(/'/g, "\\'") + '\', event)">Copy</button>'
+            + '</div>';
+    }
+    
+    bodyEl.innerHTML = chunksHTML;
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    searchEl.focus();
+}
+
+function closeChunksWindow() {
+    var modal = document.getElementById('chunksWindowModal');
+    if (modal) modal.classList.remove('open');
+    document.body.style.overflow = '';
+    window.currentChunksFile = null;
+}
+
+function filterChunks() {
+    var searchEl = document.getElementById('chunksSearchInput');
+    var query = searchEl.value.toLowerCase();
+    var cards = document.querySelectorAll('.chunk-window-card');
+    
+    for (var i = 0; i < cards.length; i = i + 1) {
+        var card = cards[i];
+        var text = card.getAttribute('data-chunk-text');
+        if (text.indexOf(query) >= 0) {
+            card.style.display = '';
+        } else {
+            card.style.display = 'none';
+        }
+    }
+}
+
+function copyChunkToClipboard(text, event) {
+    event.stopPropagation();
+    navigator.clipboard.writeText(text).then(function() {
+        toast('Chunk copied to clipboard', 'success');
+    }).catch(function() {
+        toast('Failed to copy', 'error');
+    });
+}
+
 document.addEventListener('keydown', function(e) {  
-    if (e.key === 'Escape') closeChunkModal();  
+    if (e.key === 'Escape') {
+        closeChunkModal();
+        closeChunksWindow();
+    }
 });
 
 /* ══ POLLING FOR FILE COMPLETION ══ */
@@ -1016,16 +1083,41 @@ function fmtAnswer(text) {
 
     out = result.join('\n');
 
-    out = out.replace(/^[ \t]*[\-\*] (.+)$/gm, '<li class="ans-li">$1</li>');  
+    // List markers: a dash/asterisk OR a literal bullet glyph the model used as the
+    // marker itself (•, ●, ∙, ·, ‣, ▪, ◦, ○, ⦁). Treating a literal bullet as a marker
+    // means it becomes a proper <li> (single CSS bullet) instead of rendering as raw text.
+    out = out.replace(/^[ \t]*(?:[\-\*]|[•·‣▪◦●∙○⦁])[ \t]+(.+)$/gm, '<li class="ans-li">$1</li>');  
     out = out.replace(/(<li class="ans-li">[\s\S]*?<\/li>)/g, '<ul class="ans-ul">$1</ul>');  
     out = out.replace(/<\/ul>\s*<ul class="ans-ul">/g, '');  
     out = out.replace(/^\d+\. (.+)$/gm,    '<li class="ans-li">$1</li>');  
-    // Strip a redundant leading bullet glyph the model sometimes puts INSIDE a list item
-    // (e.g. "- • text"). The list's single bullet is supplied by CSS (.ans-li::before),
-    // so a literal •/·/‣/▪/◦ at the start of the item would render as a SECOND bullet.
-    out = out.replace(/(<li class="ans-li">)\s*[•·‣▪◦]\s+/g, '$1');  
+    // Strip ANY redundant leading bullet glyph(s) the model puts INSIDE a list item
+    // (e.g. "- • text" or even "• • text"). The list's single bullet is supplied by CSS
+    // (.ans-li::before), so a literal bullet at the start of the item would render as a
+    // SECOND bullet. Handles a broad glyph set and repeated bullets, incl. nbsp spacing.
+    out = out.replace(/(<li class="ans-li">)(?:[\s\u00a0]*[•·‣▪◦●∙○⦁◘])+[\s\u00a0]*/g, '$1');  
     out = out.replace(/`([^`]+)`/g,        '<code class="ans-code">$1</code>');  
     out = out.replace(/(\(Page[^)]+\))/g,  '<span class="ans-cite">$1</span>');  
+
+    // LINKS — make any URL clickable.
+    // 1) Markdown links [text](url) -> <a>.
+    out = out.replace(/\[([^\]]+)\]\(((?:https?:\/\/|www\.)[^\s)]+)\)/g, function (_, txt, url) {
+        var href = /^www\./i.test(url) ? 'https://' + url : url;
+        return '<a class="ans-link" href="' + href + '" target="_blank" rel="noopener noreferrer">' + txt + '</a>';
+    });
+    // 2) Bare URLs -> <a>. Stash any HTML already built (anchors from step 1, code spans)
+    //    so the autolinker can NEVER reach a URL inside an existing tag/attribute — this
+    //    prevents nested <a> from a markdown link's href and linkifying URLs inside <code>.
+    var htmlStore = [];
+    out = out.replace(/<a\b[\s\S]*?<\/a>|<code\b[\s\S]*?<\/code>/g, function (m) {
+        htmlStore.push(m);
+        return '@@HTML' + (htmlStore.length - 1) + '@@';
+    });
+    out = out.replace(/((?:https?:\/\/|www\.)[^\s<>()]+[^\s<>().,;:!?'"])/g, function (url) {
+        var href = /^www\./i.test(url) ? 'https://' + url : url;
+        return '<a class="ans-link" href="' + href + '" target="_blank" rel="noopener noreferrer">' + url + '</a>';
+    });
+    out = out.replace(/@@HTML(\d+)@@/g, function (_, n) { return htmlStore[Number(n)]; });
+
     out = out.replace(/\n(?!<(h[2-4]|ul|li|hr|div|table))/g, '<br/>');
 
     // Restore protected LaTeX spans verbatim (after <br/> insertion so display-math

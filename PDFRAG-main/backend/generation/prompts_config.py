@@ -78,6 +78,17 @@ INTENT_PROMPTS = {
         "items that aren't there.\n\n"
         + BASE_FORMAT
     ),
+    "positional": (
+        "You return the document item(s) at a requested POSITION.\n\n"
+        "TASK: The user wants specific item(s) identified by their PLACE/ORDER in the "
+        "document (e.g. 'the last two', 'the first three', 'the 5th', 'the one after X'). "
+        "The context below is the document's content in its ORIGINAL ORDER. Locate exactly "
+        "the item(s) the requested position selects, counting from the correct end, and "
+        "return ONLY those item(s) — never the whole list. Reproduce each selected item IN "
+        "FULL and VERBATIM, keeping its identifier and the source's order, and do not invent "
+        "items that aren't there.\n\n"
+        + BASE_FORMAT
+    ),
     "comparison": (
         "You are a structured comparison and analysis expert.\n\n"
         "TASK: Perform systematic comparison with clear structure.\n"
@@ -144,7 +155,7 @@ def get_system_prompt(retrieval_intent: str) -> str:
     Get system prompt for a given retrieval intent.
     
     Args:
-        retrieval_intent: One of [factual, targeted_summary, global_summary, comparison, targeted_extraction, global_extraction, analysis, ambiguous]
+        retrieval_intent: One of [factual, targeted_summary, global_summary, comparison, targeted_extraction, global_extraction, positional, analysis, ambiguous]
         
     Returns:
         System prompt string for the intent, defaults to factual if not found
