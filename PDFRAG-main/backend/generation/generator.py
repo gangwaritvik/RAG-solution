@@ -1,7 +1,11 @@
 from openai import AzureOpenAI  
 from backend.config import AZURE_ENDPOINT, AZURE_API_KEY, AZURE_API_VERSION, CHAT_MODEL  
 from backend.utils.logger import get_logger
-from backend.generation.prompts_config import get_system_prompt
+from backend.prompts import (
+    get_system_prompt,
+    build_map_system_prompt,
+    build_reduce_system_prompt,
+)
 from backend.processing.parallel_executor import ParallelExecutor
 
 log = get_logger("generator")
@@ -16,11 +20,6 @@ MAP_REDUCE_INTENTS = {
     "targeted_summary",
     "global_summary",
     "analysis",
-    # NOTE: "positional" is intentionally EXCLUDED. Positional/ordinal queries ("the last
-    # two", "the 5th item") need the WHOLE ordered document in ONE call to resolve
-    # position. Map-reduce splits the document into independent batches, and a batch
-    # worker cannot tell whether its local slice holds the "first"/"last"/"Nth" item —
-    # so positional falls through to the single-call path, which sees the full sequence.
 }
 
 MAP_REDUCE_BATCH_SIZE = 10   # chunks per parallel map call
@@ -122,14 +121,10 @@ class Generator:
 
         # Add retrieved document chunks
         context_sections.append("## Document Context:")
-        if context_chunks:
-            context_sections.append("\n\n".join([
-                f"[Source: {c['filename']} | Page: {c['page']} | Chunk: {c['chunk_index']}]\n{c['text']}"
-                for c in context_chunks
-            ]))
-        else:
-            # No chunks retrieved - still provide info that a document exists
-            context_sections.append("(Content retrieval incomplete; synthesize from document knowledge)")
+        context_sections.append("\n\n".join([
+            f"[Source: {c['filename']} | Page: {c['page']} | Chunk: {c['chunk_index']}]\n{c['text']}"
+            for c in context_chunks
+        ]))
 
         full_context = "\n\n".join(context_sections)
         system_prompt = self._get_system_prompt(retrieval_intent)
@@ -238,29 +233,7 @@ class Generator:
             f"[Source: {c['filename']} | Page: {c['page']} | Chunk: {c['chunk_index']}]\n{c['text']}"
             for c in batch
         ])
-        map_system = (
-            task["system_prompt"]
-            + f"\n\nMAP STEP (batch {index}/{total}): You are seeing only PART of the "
-              "document chunks. Evaluate EACH chunk in this batch INDIVIDUALLY — do NOT "
-              "judge the batch as a whole. For every chunk, one at a time:\n"
-              "  • If that chunk contains anything relevant to the question, extract its "
-              "relevant facts/points and keep its [Source | Page | Chunk] label.\n"
-              "  • If that chunk is not relevant, simply skip it and move to the next.\n"
-              "A single relevant chunk is enough to keep — never discard a relevant chunk "
-              "just because other chunks in this batch are irrelevant. "
-              "Extract EVERY matching item present in the relevant chunks, IN FULL and "
-              "VERBATIM (every row, entry, or list item with its identifier) — never a "
-              "representative subset, sample, or summary, and never collapse multiple items "
-              "into one. "
-              "If the request targets items the source demarcates with a specific label, "
-              "heading, or marker, include ONLY passages that actually carry that marker; "
-              "do NOT treat ordinary body text, formulas, or general statements that merely "
-              "resemble them as matches. "
-              "Do NOT write a preamble, do NOT say information is missing or incomplete "
-              "(other batches cover the rest), and do NOT add a MEMORY_SUMMARY. "
-              "Reply with exactly: NONE — only if, after checking EVERY chunk individually, "
-              "not a single chunk was relevant."
-        )
+        map_system = build_map_system_prompt(task["system_prompt"], index, total)
         messages = [
             {"role": "system", "content": map_system},
             {"role": "user", "content": f"Context (batch {index}/{total}):\n{context}\n\nQuestion: {task['query']}"},
@@ -298,21 +271,7 @@ class Generator:
         reduce_sections.append("## Extracted partial findings from across the document:\n" + combined)
         full_context = "\n\n".join(reduce_sections)
 
-        reduce_system = (
-            system_prompt
-            + "\n\nREDUCE STEP: The context below contains partial findings extracted IN "
-              "PARALLEL from different sections of the source document(s). Combine "
-              "them into ONE unified answer that includes EVERY distinct item from ALL partials "
-              "— do NOT omit, skip, shorten, or summarize away any item. The ONLY thing you may "
-              "remove is an EXACT duplicate of the same item appearing in more than one partial "
-              "(keep a single copy, merging the fullest detail). Preserve each item's "
-              "identifier and the source's original order; if items are numbered, keep the "
-              "sequence continuous with no missing entries. Use ONLY information that actually "
-              "appears in these partial findings — never introduce topics, sections, themes, or "
-              "facts that are not present in them. Follow your formatting rules. "
-              "Do NOT mention this merging, the partials, or the chunks, and do NOT add any "
-              "preamble — output ONLY the final answer content."
-        )
+        reduce_system = build_reduce_system_prompt(system_prompt)
         return [
             {"role": "system", "content": reduce_system},
             {"role": "user", "content": f"Context:\n{full_context}\n\nQuestion: {query}"},
@@ -501,8 +460,8 @@ class Generator:
     def _get_system_prompt(self, retrieval_intent: str) -> str:
         """
         Get intent-specific system prompt for generation.
-        
-        Prompts are generalized and stored in prompts_config.py for easy modification.
+
+        Prompts are centralized in the backend.prompts package for easy modification.
         
         Args:
             retrieval_intent: The classified intent (factual, summary, comparison, extraction, analysis, ambiguous)

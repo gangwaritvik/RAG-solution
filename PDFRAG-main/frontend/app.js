@@ -371,7 +371,7 @@ function openChunksWindow(fileId, filename, event) {
     for (var k = 0; k < file.chunks.length; k = k + 1) {
         var c = file.chunks[k];
         var pageNum = (c.page != null && c.page !== '?') ? c.page : '?';
-        chunksHTML += '<div class="chunk-window-card" data-chunk-index="' + k + '" data-chunk-text="' + esc(c.text || '').toLowerCase() + '">'
+        chunksHTML += '<div class="chunk-window-card" data-chunk-index="' + k + '" data-chunk-text="' + esc(c.text || '').toLowerCase() + '" onclick="toggleChunkExpand(this)" title="Click to expand / collapse">'
             + '<div class="chunk-window-header">'
             + '<div class="chunk-window-label">Chunk ' + (k + 1) + '</div>'
             + '<div class="chunk-window-meta">Page ' + pageNum + ' • ' + (file.chunkMode || 'recursive').toUpperCase() + '</div>'
@@ -419,7 +419,15 @@ function copyChunkToClipboard(text, event) {
     });
 }
 
-document.addEventListener('keydown', function(e) {  
+// Toggle a chunk card in the "All Chunks" window between the clamped 3-line
+// preview and the full chunk text. The Copy button stops propagation, so it
+// never triggers this toggle.
+function toggleChunkExpand(card) {
+    if (!card) return;
+    card.classList.toggle('expanded');
+}
+
+document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         closeChunkModal();
         closeChunksWindow();
@@ -733,6 +741,7 @@ async function streamQuery(query, t0) {
     var fullAnswer = '';
     var sources    = null;
     var finalAnswer = null;
+    var firstToken = false;
 
     var reader  = res.body.getReader();
     var decoder = new TextDecoder('utf-8');
@@ -759,7 +768,21 @@ async function streamQuery(query, t0) {
             if (ev.type === 'meta') {
                 sources = ev.retrieved_chunks || [];
                 if (ev.group_id) state.activeGroupId = ev.group_id;
+                // Live progress: tell the user retrieval finished and how many
+                // sources are being read, so the wait before the first token
+                // (classification + retrieval + map phase) doesn't look frozen.
+                if (!firstToken && msg.thinkingEl) {
+                    var n = sources ? sources.length : 0;
+                    msg.thinkingEl.querySelector('.think-label').textContent =
+                        n > 0 ? ('Reading ' + n + ' source' + (n === 1 ? '' : 's') + '\u2026')
+                              : 'Generating answer\u2026';
+                }
             } else if (ev.type === 'token') {
+                // First token: drop the thinking indicator and switch to live text.
+                if (!firstToken) {
+                    firstToken = true;
+                    if (msg.thinkingEl) { msg.thinkingEl.remove(); msg.thinkingEl = null; }
+                }
                 fullAnswer += ev.text;
                 msg.bubble.textContent = fullAnswer;
                 scrollChat();
@@ -900,7 +923,10 @@ function createStreamingAIMessage() {
                 + '<div class="chat-ai-avatar">&#x2B21;</div>'
                 + 'GPT-4.1 <span class="chat-ai-elapsed" style="color:var(--t3);margin-left:6px;">&middot; streaming&hellip;</span>'
                 + '</div>'
-                + '<div class="chat-ai-bubble chat-ai-streaming"></div>'
+                + '<div class="chat-ai-bubble chat-ai-streaming">'
+                + '<span class="think"><span class="think-label">Understanding your question&hellip;</span>'
+                + '<span class="think-dots"><i></i><i></i><i></i></span></span>'
+                + '</div>'
                 + '<div class="chat-ai-sources-slot"></div>'
                 + '</div>';
     area.appendChild(row);
@@ -908,6 +934,7 @@ function createStreamingAIMessage() {
     return {
         row: row,
         bubble: row.querySelector('.chat-ai-bubble'),
+        thinkingEl: row.querySelector('.think'),
         sourcesSlot: row.querySelector('.chat-ai-sources-slot'),
         elapsedEl: row.querySelector('.chat-ai-elapsed'),
     };
@@ -1084,17 +1111,22 @@ function fmtAnswer(text) {
     out = result.join('\n');
 
     // List markers: a dash/asterisk OR a literal bullet glyph the model used as the
-    // marker itself (•, ●, ∙, ·, ‣, ▪, ◦, ○, ⦁). Treating a literal bullet as a marker
+    // marker itself (•, ●, ∙, ·, ‣, ▪, ◦, ○, ⦁, ⁃). Treating a literal bullet as a marker
     // means it becomes a proper <li> (single CSS bullet) instead of rendering as raw text.
-    out = out.replace(/^[ \t]*(?:[\-\*]|[•·‣▪◦●∙○⦁])[ \t]+(.+)$/gm, '<li class="ans-li">$1</li>');  
+    out = out.replace(/^[ \t]*(?:[\-\*]|[•·‣▪◦●∙○⦁⁃])[ \t]+(.+)$/gm, '<li class="ans-li">$1</li>');  
     out = out.replace(/(<li class="ans-li">[\s\S]*?<\/li>)/g, '<ul class="ans-ul">$1</ul>');  
     out = out.replace(/<\/ul>\s*<ul class="ans-ul">/g, '');  
     out = out.replace(/^\d+\. (.+)$/gm,    '<li class="ans-li">$1</li>');  
-    // Strip ANY redundant leading bullet glyph(s) the model puts INSIDE a list item
-    // (e.g. "- • text" or even "• • text"). The list's single bullet is supplied by CSS
-    // (.ans-li::before), so a literal bullet at the start of the item would render as a
-    // SECOND bullet. Handles a broad glyph set and repeated bullets, incl. nbsp spacing.
-    out = out.replace(/(<li class="ans-li">)(?:[\s\u00a0]*[•·‣▪◦●∙○⦁◘])+[\s\u00a0]*/g, '$1');  
+    // Strip ANY redundant leading list marker(s) the model left INSIDE a list item, so
+    // they don't render as a SECOND bullet next to the CSS one (.ans-li::before). Covers:
+    //   • a literal bullet glyph (•, ●, ·, ‣, ▪, ◦, ○, ⦁, ∙, ◘, ⁃), possibly repeated, and
+    //   • a stray "-" or "*" that is ITSELF followed by whitespace (a leftover dash/star
+    //     marker, e.g. from "- - text" or "* - text") — but NOT a leading minus on a value
+    //     like "-5 degrees", where the "-" is followed by a digit/letter, not a space.
+    // The marker may sit INSIDE the item's bold/italic markers (e.g. "- **• Heading**" ->
+    // "<li><strong>• Heading</strong>"), since bold/italic convert before lists — so allow
+    // optional <strong>/<em> open tags between the <li> and the marker, and keep them.
+    out = out.replace(/(<li class="ans-li">)((?:<(?:strong|em)>)*)(?:[\s\u00a0]*(?:[•·‣▪◦●∙○⦁◘⁃]|[-*](?=[\s\u00a0])))+[\s\u00a0]*/g, '$1$2');  
     out = out.replace(/`([^`]+)`/g,        '<code class="ans-code">$1</code>');  
     out = out.replace(/(\(Page[^)]+\))/g,  '<span class="ans-cite">$1</span>');  
 

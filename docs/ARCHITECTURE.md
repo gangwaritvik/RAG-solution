@@ -223,7 +223,7 @@ generalizes across documents and phrasings:
 | Context resolution | `PDFRAG-main/backend/memory/resolution/context_resolver.py` |
 | Retrieval modes + intent config | `PDFRAG-main/backend/retrieval/retriever.py` |
 | Generation + map-reduce + streaming | `PDFRAG-main/backend/generation/generator.py` |
-| Intent prompts | `PDFRAG-main/backend/generation/prompts_config.py` |
+| All LLM prompts (centralized) | `PDFRAG-main/backend/prompts/` |
 | Background group summaries | `PDFRAG-main/backend/summarization/background_summarizer.py` |
 | Conversation memory | `PDFRAG-main/backend/memory/management/conversation_manager.py` |
 | Frontend | `PDFRAG-main/frontend/{index.html,app.js,styles.css}` |

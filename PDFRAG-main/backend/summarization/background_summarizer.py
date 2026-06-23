@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from backend.config import CHAT_MODEL
 from backend.utils.logger import get_logger
+from backend.prompts import SUMMARIZER_SYSTEM_PROMPT, build_summary_user_prompt
 
 log = get_logger("background_summarizer")
 
@@ -267,28 +268,7 @@ class BackgroundSummarizer:
         """
         try:
             # Build prompt
-            prompt_parts = [
-                f"You are summarizing a conversation about: {topic}",
-                "",
-                "Recent conversation turns:",
-                turns_text,
-            ]
-            
-            if existing_summary:
-                prompt_parts.insert(2, f"Previous summary: {existing_summary}")
-            
-            prompt = "\n".join(prompt_parts)
-            prompt += (
-                "\n\nWrite a running summary of this conversation by MERGING the previous "
-                "summary with the new turns above. Requirements:\n"
-                "- Keep it SHORT and BRIEF — no filler, no preamble, every line carries real "
-                "information. Length should follow the content: only as long as needed.\n"
-                "- Do NOT omit any specific claim, fact, numeric value, formula, definition, "
-                "name, unit, or conclusion that was established. Brevity must NOT cost facts.\n"
-                "- Preserve exact figures, units, formulas, and terminology verbatim.\n"
-                "- Prefer compact bullet points over prose; de-duplicate repeated points.\n"
-                "- Keep it self-contained so a later question can be answered from it alone."
-            )
+            prompt = build_summary_user_prompt(topic, turns_text, existing_summary)
 
             # Call LLM for summary (use the generator's configured client + deployment
             # so this matches the rest of the app and doesn't hit a non-existent model).
@@ -297,12 +277,7 @@ class BackgroundSummarizer:
                 messages=[
                     {
                         "role": "system",
-                        "content": (
-                            "You are a precise summarization expert. Produce brief, "
-                            "information-dense summaries that retain every concrete fact, "
-                            "claim, value, and conclusion. Never invent content; use only "
-                            "what the turns provide."
-                        )
+                        "content": SUMMARIZER_SYSTEM_PROMPT
                     },
                     {
                         "role": "user",
