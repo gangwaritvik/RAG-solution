@@ -23,7 +23,14 @@ MAP_REDUCE_INTENTS = {
 }
 
 MAP_REDUCE_BATCH_SIZE = 10   # chunks per parallel map call
-MAP_REDUCE_MIN_CHUNKS = 12   # only parallelize when chunk count exceeds this
+# Only split into parallel map/reduce when the retrieval is genuinely large (3+ batches).
+# Splitting a SMALL retrieval and then merging the partials is where trailing items get
+# dropped from enumerations ("list all X" losing the last entry): the reduce LLM silently
+# omits an item that sat at the end of one partial. A document that fits comfortably in a
+# single call must therefore be answered in ONE call, which sees every item together and
+# enumerates them completely. Map-reduce stays only for large multi-batch retrievals where
+# a single oversized call isn't practical.
+MAP_REDUCE_MIN_CHUNKS = 24   # only parallelize when chunk count exceeds this
 # Map batches run concurrently, but in MODERATE waves rather than all at once. Bursting
 # many simultaneous GPT requests at one Azure deployment blows its per-minute token
 # burst, so the deployment throttles/queues the excess — the queued calls then exceed

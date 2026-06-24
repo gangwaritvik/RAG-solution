@@ -204,6 +204,13 @@ def _ingest_one_file(filename, content, chunk_mode):
                 for c in doc["chunks"]
             ]
             with _store_lock:
+                # Replace-on-reingest: if this filename already has vectors, delete them
+                # FIRST so re-uploading the same file updates it in place instead of
+                # appending a duplicate copy of every chunk. Kept inside the store lock so
+                # the delete+add is atomic w.r.t. the single serialized ChromaDB writer.
+                if doc["filename"] in vector_store.list_filenames():
+                    removed = vector_store.delete_by_filename(doc["filename"])
+                    log.info(f"[INGEST_BG] ♻️ Replaced {removed} existing vector(s) for {doc['filename']} (re-ingest)")
                 vector_store.add(vecs, meta)
 
             file_results.append({
