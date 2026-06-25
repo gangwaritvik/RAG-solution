@@ -201,9 +201,6 @@ missing — so you never get a cryptic crash mid-run. Copy [.env.example](.env.e
 | `FIGURE_MIN_WIDTH` / `FIGURE_MIN_HEIGHT` | | `60` / `50` | Min figure size (pts) to caption |
 | `FIGURE_MAX_PER_PAGE` | | `6` | Max figures captioned per page |
 
-> ⚠️ Keep `.env` out of version control (already in `.gitignore`). Rotate any key that has
-> been exposed. Commit `.env.example` instead.
-
 ---
 
 ## Running
