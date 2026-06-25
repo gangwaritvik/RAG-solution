@@ -1,7 +1,7 @@
 [project]
-name = "pdfrag-main"
+name = "pdfrag"
 version = "0.1.0"
-description = "Add your description here"
+description = "Retrieval-Augmented Generation system over PDF/DOCX with FastAPI, ChromaDB, and Azure OpenAI."
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.10"
 dependencies = []

@@ -25,9 +25,9 @@ if sys.platform == "win32":
 
 # Get project root
 PROJECT_ROOT = Path(__file__).parent.absolute()
-BACKEND_PATH = PROJECT_ROOT / "PDFRAG-main" / "backend" / "main.py"
-FRONTEND_PATH = PROJECT_ROOT / "PDFRAG-main" / "frontend"
-STORAGE_PATH = PROJECT_ROOT / "PDFRAG-main" / "backend" / "storage"
+BACKEND_PATH = PROJECT_ROOT / "backend" / "pipeline.py"
+FRONTEND_PATH = PROJECT_ROOT / "frontend"
+STORAGE_PATH = PROJECT_ROOT / "backend" / "storage"
 CHROMA_PATH = STORAGE_PATH / "chroma_db"
 
 # Server ports — single source of truth so the docs, defaults and the actual
@@ -41,7 +41,7 @@ def run_backend():
     print(f"🚀 Starting BACKEND (FastAPI/uvicorn, port {BACKEND_PORT})...")
     print("="*60 + "\n")
 
-    os.chdir(str(PROJECT_ROOT / "PDFRAG-main"))
+    os.chdir(str(PROJECT_ROOT))
     # Launch the FastAPI app via uvicorn. The module path is backend.app:app.
     subprocess.run([
         sys.executable, "-m", "uvicorn",

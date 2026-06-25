@@ -1,0 +1,28 @@
+# ── Python ──
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ── Virtual environments ──
+.venv/
+venv/
+env/
+
+# ── Secrets / config ──
+.env
+.env.*
+!.env.example
+
+# ── Runtime data (regenerated; not source) ──
+backend/logs/
+backend/storage/
+
+# ── OS / editor ──
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
