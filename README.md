@@ -136,7 +136,7 @@ python-multipart>=0.0.32
 ### 1. Clone the repository
 
 ```bash
-git clone <your-repo-url>.git
+git clone https://github.com/gangwaritvik/RAG-solution.git
 cd PDFRAG-main
 ```
 
